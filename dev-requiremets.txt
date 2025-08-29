@@ -1,0 +1,3 @@
+mcp
+requests
+python-dotenv
