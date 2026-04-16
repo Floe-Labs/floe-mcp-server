@@ -7,7 +7,7 @@ import { createMcpServer } from './server.js';
 
 async function main() {
   const config = loadConfig();
-  const isStdio = process.argv.includes('--stdio') || !process.stdin.isTTY;
+  const isStdio = process.argv.includes('--stdio');
 
   const client = new FloeApiClient(config.apiBaseUrl, config.apiKey);
 
