@@ -79,7 +79,12 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     min_duration_days: z.number().int().min(1).describe('Min duration in days'),
     max_duration_days: z.number().int().min(1).describe('Max duration in days'),
     market_id: z.string().optional().describe('Market ID. Omit for default.'),
-  }, async (params) => wrap(() => client.createLendIntent(params))());
+  }, async (params) => {
+    if (params.min_duration_days > params.max_duration_days) {
+      return errorResult('INVALID_ARGUMENT', { message: 'min_duration_days must be <= max_duration_days' });
+    }
+    return wrap(() => client.createLendIntent(params))();
+  });
 
   server.tool('create_borrow_intent', 'Build unsigned tx to create a borrow request. Solver matches it with lenders.', {
     wallet_address: addr.describe('Borrower wallet'),
@@ -90,7 +95,12 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     max_duration_days: z.number().int().min(1).describe('Max duration in days'),
     min_ltv_bps: z.number().int().optional().default(8000).describe('Min LTV in bps'),
     market_id: z.string().optional().describe('Market ID. Omit for default.'),
-  }, async (params) => wrap(() => client.createBorrowIntent(params))());
+  }, async (params) => {
+    if (params.min_duration_days > params.max_duration_days) {
+      return errorResult('INVALID_ARGUMENT', { message: 'min_duration_days must be <= max_duration_days' });
+    }
+    return wrap(() => client.createBorrowIntent(params))();
+  });
 
   server.tool('create_counter_intent',
     'Create a counter-intent against an existing offer. Primary way to accept offers. Solver auto-matches.',

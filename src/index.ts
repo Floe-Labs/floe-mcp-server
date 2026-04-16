@@ -25,25 +25,54 @@ async function main() {
     });
 
     app.post('/mcp', async (req, res) => {
-      // Forward auth header to API client if present
       const authHeader = req.headers.authorization;
-      const reqClient = authHeader
-        ? new FloeApiClient(config.apiBaseUrl, authHeader.replace('Bearer ', ''))
+      const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+      const allowFallback = process.env.ALLOW_SHARED_KEY_FALLBACK === 'true';
+
+      if (!bearerToken && !allowFallback) {
+        return res.status(401).json({ error: 'Missing Bearer token' });
+      }
+
+      const reqClient = bearerToken
+        ? new FloeApiClient(config.apiBaseUrl, bearerToken)
         : client;
 
       const server = createMcpServer(reqClient);
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      res.on('close', () => { transport.close(); server.close(); });
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+
+      let cleanedUp = false;
+      const cleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        transport.close();
+        server.close();
+      };
+
+      res.on('close', cleanup);
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      } catch (err) {
+        cleanup();
+        console.error('[floe-mcp] /mcp request failed:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Internal MCP error' });
+        }
+      }
     });
 
     app.get('/mcp', (_req, res) => res.status(405).json({ error: 'Use POST' }));
     app.delete('/mcp', (_req, res) => res.status(405).json({ error: 'Stateless server' }));
 
-    const port = parseInt(process.env.MCP_PORT ?? '3100', 10);
-    app.listen(port, '0.0.0.0', () => {
-      console.log(`[floe-mcp] Running at http://0.0.0.0:${port}`);
+    const rawPort = process.env.MCP_PORT ?? '3100';
+    const port = Number(rawPort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(`Invalid MCP_PORT: "${rawPort}" (must be 1-65535)`);
+    }
+
+    const host = process.env.MCP_HOST ?? '127.0.0.1';
+    app.listen(port, host, () => {
+      console.log(`[floe-mcp] Running at http://${host}:${port}`);
       console.log(`[floe-mcp] API: ${config.apiBaseUrl}`);
     });
   }

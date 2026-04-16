@@ -43,7 +43,20 @@ const TX_SIGNING = `# Transaction Signing
 
 Write tools return:
 \`\`\`json
-{ "transactions": [{ "step": 1, "transaction": { "to", "data", "value", "chainId" }, "isApproval": true }] }
+{
+  "transactions": [
+    {
+      "step": 1,
+      "transaction": {
+        "to": "0x...",
+        "data": "0x...",
+        "value": "0",
+        "chainId": 8453
+      },
+      "isApproval": true
+    }
+  ]
+}
 \`\`\`
 
 Sign with viem:

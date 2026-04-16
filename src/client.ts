@@ -3,21 +3,38 @@
  * Replaces the entire ServiceContainer from the thick MCP server.
  */
 export class FloeApiClient {
+  private static DEFAULT_TIMEOUT_MS = 30_000;
+
   constructor(
     private baseUrl: string,
     private apiKey: string,
+    private timeoutMs: number = FloeApiClient.DEFAULT_TIMEOUT_MS,
   ) {}
 
   private async request<T = any>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new ApiError(0, 'TIMEOUT', `Request to ${method} ${path} timed out after ${this.timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
