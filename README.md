@@ -1,6 +1,10 @@
 # @floelabs/mcp-server
 
-Model Context Protocol (MCP) server for the [Floe](https://floelabs.xyz) DeFi lending protocol on Base Mainnet. Gives AI agents full access to intent-based lending, borrowing, loan management, and on-chain transaction building.
+[![npm version](https://img.shields.io/npm/v/@floelabs/mcp-server)](https://www.npmjs.com/package/@floelabs/mcp-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
+
+MCP server for the [Floe](https://dev-dashboard.floelabs.xyz) credit protocol. Gives AI agents (Claude, Cursor, custom) full access to DeFi lending on Base.
 
 ## Quick Start
 
@@ -80,6 +84,16 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | `FLOE_API_KEY` | Yes | — | Your Floe API key (`floe_live_...`) |
 | `FLOE_API_BASE_URL` | No | `https://credit-api.floelabs.xyz` | API endpoint |
 | `MCP_PORT` | No | `3100` | HTTP server port (non-stdio mode) |
+
+## What Can Agents Do?
+
+| Category | Capabilities |
+|----------|-------------|
+| **Markets** | Browse lending markets, check rates, view liquidity |
+| **Intents** | Create lend/borrow offers, accept existing offers, cancel intents |
+| **Loans** | Monitor loan health, repay, add/withdraw collateral, liquidate |
+| **Transactions** | Build unsigned txs, simulate, broadcast signed txs, check receipts |
+| **Analysis** | Check intent compatibility, calculate risk metrics, estimate interest |
 
 ## Tools (27)
 
@@ -245,6 +259,13 @@ Key concepts:
 | LendingIntentMatcher | `0x17946cD3e180f82e632805e5549EC913330Bb175` |
 | PriceOracle | `0xEA058a06b54dce078567f9aa4dBBE82a100210Cc` |
 | LendingViews | `0x9101027166bE205105a9E0c68d6F14f21f6c5003` |
+
+## Links
+
+- [Website](https://floelabs.xyz)
+- [Documentation](https://floe-labs.gitbook.io/docs)
+- [AgentKit Actions (TypeScript)](https://github.com/floelabs/agentkit-actions)
+- [AgentKit Actions (Python)](https://github.com/floelabs/agentkit-actions-py)
 
 ## License
 
