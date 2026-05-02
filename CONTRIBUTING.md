@@ -23,6 +23,7 @@ pnpm start      # Run built server
 ## Testing with MCP Inspector
 
 ```bash
+export FLOE_API_KEY=your_api_key_here
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
