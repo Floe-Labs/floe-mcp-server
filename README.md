@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-MCP server for the [Floe](https://floelabs.xyz) credit protocol. Gives AI agents (Claude, Cursor, custom) full access to DeFi lending on Base.
+MCP server for the [Floe](https://dev-dashboard.floelabs.xyz) credit protocol. Gives AI agents (Claude, Cursor, custom) full access to DeFi lending on Base.
 
 ## Quick Start
 
@@ -263,7 +263,7 @@ Key concepts:
 ## Links
 
 - [Website](https://floelabs.xyz)
-- [Documentation](https://docs.floelabs.xyz)
+- [Documentation](https://floe-labs.gitbook.io/docs)
 - [AgentKit Actions (TypeScript)](https://github.com/floelabs/agentkit-actions)
 - [AgentKit Actions (Python)](https://github.com/floelabs/agentkit-actions-py)
 
