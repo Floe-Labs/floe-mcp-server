@@ -219,7 +219,10 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
   server.tool('clear_spend_limit',
     'Remove the agent\'s session spend cap. Subsequent paid calls will only be bounded by the on-chain creditLimit.',
     {},
-    wrap(() => client.clearSpendLimit()));
+    wrap(async () => {
+      await client.clearSpendLimit();
+      return { ok: true };
+    }));
 
   server.tool('list_credit_thresholds',
     'List the agent\'s registered credit-utilization thresholds. Each fires a credit.warning / credit.at_limit / credit.recovered webhook when crossed.',
@@ -240,7 +243,10 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     {
       id: z.number().int().positive().describe('Threshold subscription id.'),
     },
-    async ({ id }) => wrap(() => client.deleteCreditThreshold(id))());
+    async ({ id }) => wrap(async () => {
+      await client.deleteCreditThreshold(id);
+      return { ok: true, id };
+    })());
 
   server.tool('estimate_x402_cost',
     'Preflight an x402-protected URL and return its USDC cost without paying. Reflects against the calling agent\'s available credit and session spend-limit so you can decide gating in one round-trip. Use BEFORE proxy/fetch.',
