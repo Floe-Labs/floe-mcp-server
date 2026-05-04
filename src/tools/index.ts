@@ -185,4 +185,68 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
   server.tool('get_transaction_status', 'Check status of a submitted transaction.', {
     transaction_hash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).describe('Transaction hash'),
   }, async ({ transaction_hash }) => wrap(() => client.getTxStatus(transaction_hash))());
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AGENT AWARENESS TOOLS (9) — let an agent reason about its own
+  // credit before committing capital. Decide → estimate → check → act.
+  // All require an agent API key (`floe_*`); the calling identity is
+  // taken from the bearer token, so none of these tools need a wallet
+  // address parameter.
+  // ═══════════════════════════════════════════════════════════════════
+
+  server.tool('get_credit_remaining',
+    'Return how much USDC credit the calling agent has left. Use BEFORE deciding whether to make a paid call. Includes available, creditLimit, headroomToAutoBorrow, utilizationBps, and any session spend-limit state.',
+    {},
+    wrap(() => client.getCreditRemaining()));
+
+  server.tool('get_loan_state',
+    'Return the agent\'s coarse credit state-machine view: idle | borrowing | at_limit | repaying. Use to gate actions that only make sense in specific states (e.g. don\'t spend while at_limit).',
+    {},
+    wrap(() => client.getLoanState()));
+
+  server.tool('get_spend_limit',
+    'Return the agent\'s currently-active session spend cap, if any. Returns { active: false } when no cap is set.',
+    {},
+    wrap(() => client.getSpendLimit()));
+
+  server.tool('set_spend_limit',
+    'Set or update the agent\'s session spend cap (USDC raw, 6 decimals). Resets the session window — anything spent before this call no longer counts. Operator-defined; distinct from the on-chain creditLimit.',
+    {
+      limit_raw: z.string().regex(/^[1-9]\d*$/).describe('Cap in raw USDC units (6 decimals), positive. e.g. "1000000" = $1.'),
+    },
+    async ({ limit_raw }) => wrap(() => client.setSpendLimit({ limitRaw: limit_raw }))());
+
+  server.tool('clear_spend_limit',
+    'Remove the agent\'s session spend cap. Subsequent paid calls will only be bounded by the on-chain creditLimit.',
+    {},
+    wrap(() => client.clearSpendLimit()));
+
+  server.tool('list_credit_thresholds',
+    'List the agent\'s registered credit-utilization thresholds. Each fires a credit.warning / credit.at_limit / credit.recovered webhook when crossed.',
+    {},
+    wrap(() => client.listCreditThresholds()));
+
+  server.tool('register_credit_threshold',
+    'Register a new credit-utilization threshold. When utilizationBps crosses thresholdBps from below, the agent\'s webhook receives credit.warning (or credit.at_limit if >= 9500). Drops below → credit.recovered. Cap of 20 thresholds per agent.',
+    {
+      threshold_bps: z.number().int().min(1).max(10000).describe('Utilization threshold in bps (5000 = 50%, 9500 = 95% → at_limit).'),
+      webhook_id: z.number().int().positive().optional().describe('Optional: pin to a specific webhook owned by this developer. Omit for fanout.'),
+    },
+    async ({ threshold_bps, webhook_id }) =>
+      wrap(() => client.registerCreditThreshold({ thresholdBps: threshold_bps, webhookId: webhook_id }))());
+
+  server.tool('delete_credit_threshold',
+    'Delete one of the agent\'s credit-utilization thresholds by id (from list_credit_thresholds).',
+    {
+      id: z.number().int().positive().describe('Threshold subscription id.'),
+    },
+    async ({ id }) => wrap(() => client.deleteCreditThreshold(id))());
+
+  server.tool('estimate_x402_cost',
+    'Preflight an x402-protected URL and return its USDC cost without paying. Reflects against the calling agent\'s available credit and session spend-limit so you can decide gating in one round-trip. Use BEFORE proxy/fetch.',
+    {
+      url: z.string().url().describe('Target URL to preflight.'),
+      method: z.string().regex(/^[A-Z]{3,7}$/).optional().describe('HTTP method (default GET).'),
+    },
+    async ({ url, method }) => wrap(() => client.estimateX402Cost({ url, method }))());
 }
