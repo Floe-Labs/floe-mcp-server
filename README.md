@@ -142,7 +142,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 
 ### Agent Awareness Tools
 
-Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`); the calling identity is taken from the bearer token.
+Let's an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`); the calling identity is taken from the bearer token.
 
 | Tool | Description |
 |------|-------------|
