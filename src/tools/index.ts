@@ -251,8 +251,13 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
   server.tool('estimate_x402_cost',
     'Preflight an x402-protected URL and return its USDC cost without paying. Reflects against the calling agent\'s available credit and session spend-limit so you can decide gating in one round-trip. Use BEFORE proxy/fetch.',
     {
-      url: z.string().url().describe('Target URL to preflight.'),
-      method: z.string().regex(/^[A-Z]{3,7}$/).optional().describe('HTTP method (default GET).'),
+      url: z.string()
+        .url()
+        .refine((u) => /^https?:\/\//i.test(u), 'URL must use http:// or https://')
+        .describe('Target URL to preflight.'),
+      method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
+        .optional()
+        .describe('HTTP method (default GET).'),
     },
     async ({ url, method }) => wrap(() => client.estimateX402Cost({ url, method }))());
 }
