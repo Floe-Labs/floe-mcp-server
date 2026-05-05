@@ -7,7 +7,7 @@ import { registerPrompts } from './prompts/index.js';
 export function createMcpServer(client: FloeApiClient): McpServer {
   const server = new McpServer({
     name: 'floe-lending',
-    version: '0.1.0',
+    version: '0.2.0',
   });
 
   registerAllTools(server, client);

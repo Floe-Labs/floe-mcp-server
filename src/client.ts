@@ -43,7 +43,13 @@ export class FloeApiClient {
       throw new ApiError(res.status, parsed?.error ?? `HTTP ${res.status}`, parsed?.message ?? text);
     }
 
-    return res.json() as Promise<T>;
+    // 204 No Content (and any other empty-body success) must not blow up
+    // `JSON.parse('')`. Used by `clear_spend_limit` / `delete_credit_threshold`
+    // and any future endpoint whose contract says "ack-only".
+    if (res.status === 204) return undefined as T;
+    const text = await res.text();
+    if (text.trim().length === 0) return undefined as T;
+    return JSON.parse(text) as T;
   }
 
   private get<T = any>(path: string) { return this.request<T>('GET', path); }
@@ -105,6 +111,25 @@ export class FloeApiClient {
   checkCompatibility(body: unknown) { return this.post('/v1/analysis/compatibility', body); }
   calculateRisk(body: unknown) { return this.post('/v1/analysis/risk', body); }
   estimateInterest(body: unknown) { return this.post('/v1/analysis/interest', body); }
+
+  // ── Agent Awareness ───────────────────────────────────────────────
+  // The 5 primitives let an agent answer "do I have credit?", "is this
+  // call worth it?", and "where do I sit in the loan lifecycle?" before
+  // committing capital. All require an agent API key (`floe_*`); the
+  // calling identity is taken from the bearer token.
+  getCreditRemaining() { return this.get('/v1/agents/credit-remaining'); }
+  getLoanState() { return this.get('/v1/agents/loan-state'); }
+  getSpendLimit() { return this.get('/v1/agents/spend-limit'); }
+  setSpendLimit(body: { limitRaw: string }) { return this.request('PUT', '/v1/agents/spend-limit', body); }
+  clearSpendLimit() { return this.request('DELETE', '/v1/agents/spend-limit'); }
+  listCreditThresholds() { return this.get('/v1/agents/credit-thresholds'); }
+  registerCreditThreshold(body: { thresholdBps: number; webhookId?: number }) {
+    return this.post('/v1/agents/credit-thresholds', body);
+  }
+  deleteCreditThreshold(id: number) { return this.request('DELETE', `/v1/agents/credit-thresholds/${id}`); }
+  estimateX402Cost(body: { url: string; method?: string }) {
+    return this.post('/v1/x402/estimate', body);
+  }
 }
 
 export class ApiError extends Error {

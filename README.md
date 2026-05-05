@@ -95,7 +95,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | **Transactions** | Build unsigned txs, simulate, broadcast signed txs, check receipts |
 | **Analysis** | Check intent compatibility, calculate risk metrics, estimate interest |
 
-## Tools (27)
+## Tools (36)
 
 ### Read Tools
 | Tool | Description |
@@ -139,6 +139,22 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | `simulate_transaction` | Dry-run a transaction (eth_call) |
 | `broadcast_transaction` | Submit a signed transaction |
 | `get_transaction_status` | Check transaction receipt |
+
+### Agent Awareness Tools
+
+Let's an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`); the calling identity is taken from the bearer token.
+
+| Tool | Description |
+|------|-------------|
+| `get_credit_remaining` | Current available credit, headroom to auto-borrow, utilization in bps |
+| `get_loan_state` | Coarse state: `idle` \| `borrowing` \| `at_limit` \| `repaying` |
+| `get_spend_limit` | Currently active session spend cap, if any |
+| `set_spend_limit` | Set a session-level USDC ceiling (resets the session window) |
+| `clear_spend_limit` | Remove the session spend cap |
+| `list_credit_thresholds` | List registered credit-utilization thresholds |
+| `register_credit_threshold` | Register a webhook trigger at a utilization threshold (cap: 20 per agent) |
+| `delete_credit_threshold` | Remove a registered threshold |
+| `estimate_x402_cost` | Preflight an x402 URL — returns cost + reflection against your credit, no payment |
 
 ## Transaction Flow
 
