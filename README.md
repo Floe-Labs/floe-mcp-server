@@ -4,7 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-MCP server for the [Floe](https://dev-dashboard.floelabs.xyz) credit protocol. Gives AI agents (Claude, Cursor, custom) full access to DeFi lending on Base.
+MCP server for Floe — working capital for AI agents on Base. Connect Claude, Cursor, or any MCP client to get USDC credit lines, manage loans, and pay x402 APIs.
+
+**3,000+ secured working capital lines issued. Zero defaults.**
+
+Deposit USDC, borrow up to 95% — fixed rates, gas-free, no crypto complexity. Also supports WETH and cbBTC collateral for volatile markets.
 
 ## Quick Start
 
@@ -77,6 +81,8 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 2. Connect your wallet
 3. Create an API key — you'll get a `floe_live_...` key
 
+> **Fund with fiat:** You can fund your wallet with USDC via Coinbase — credit card or bank transfer — directly from the dashboard. No crypto on-ramp needed.
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
@@ -89,9 +95,12 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 
 | Category | Capabilities |
 |----------|-------------|
+| **Working Capital** | Deposit USDC, borrow up to 95% instantly — same-token market, no price risk |
+| **Volatile Markets** | Also supports WETH/cbBTC collateral for crypto-native agents |
 | **Markets** | Browse lending markets, check rates, view liquidity |
 | **Intents** | Create lend/borrow offers, accept existing offers, cancel intents |
 | **Loans** | Monitor loan health, repay, add/withdraw collateral, liquidate |
+| **x402 Payments** | Pay x402 APIs with credit — zero-touch, no pre-funding |
 | **Transactions** | Build unsigned txs, simulate, broadcast signed txs, check receipts |
 | **Analysis** | Check intent compatibility, calculate risk metrics, estimate interest |
 
@@ -172,12 +181,12 @@ All write tools return **unsigned transactions** — the server never holds priv
    → Returns { transactionHash, status, blockNumber }
 ```
 
-### Example: Accept a Lend Offer
+### Example: Get a USDC Credit Line
 
 ```
-Agent: "Borrow 1000 USDC on Floe"
+Agent: "I need 9,500 USDC working capital"
 
-1. get_open_lend_intents → browse offers
+1. get_open_lend_intents → browse USDC/USDC offers
 2. create_counter_intent(offer_hash, wallet) → unsigned txs
 3. simulate_transaction(from, to, data) → { success: true, gasEstimate }
 4. Sign locally → signed hex
@@ -254,13 +263,14 @@ The MCP server is a thin HTTP client. All protocol logic, indexer queries, and R
 
 ## Protocol Overview
 
-Floe is an **intent-based** lending protocol:
+Floe is an **intent-based** lending protocol on Base:
 
-1. **Lenders** post offers specifying amount, minimum rate, and max LTV
-2. **Borrowers** post requests specifying amount, collateral, and max rate
-3. **Solvers** automatically match compatible intent pairs on-chain
-4. **Loans** are created with the matched terms, collateral locked
-5. **Borrowers** repay principal + interest to unlock collateral
+1. **Primary market (USDC/USDC):** Deposit USDC as collateral, borrow up to 95% as a credit line. No price-volatility risk — same-token market. This is how most AI agents get working capital.
+2. **Volatile markets:** Also supports WETH and cbBTC collateral for crypto-native use cases.
+3. **Solvers** automatically match compatible intent pairs on-chain.
+4. **Loans** are created with matched terms, collateral locked in per-loan isolated escrow.
+5. **Gas-free** — Floe sponsors all transaction costs.
+6. **Fixed rates** — no variable-rate surprises.
 
 Key concepts:
 - **Intent**: An on-chain offer to lend or borrow
@@ -279,6 +289,7 @@ Key concepts:
 ## Links
 
 - [Website](https://floelabs.xyz)
+- [Dashboard](https://dev-dashboard.floelabs.xyz)
 - [Documentation](https://floe-labs.gitbook.io/docs)
 - [AgentKit Actions (TypeScript)](https://github.com/floelabs/agentkit-actions)
 - [AgentKit Actions (Python)](https://github.com/floelabs/agentkit-actions-py)
