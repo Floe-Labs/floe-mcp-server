@@ -197,7 +197,15 @@ const wallet = createWalletClient({
   transport: http(),
 });
 
-// Sign and send each transaction in order
+// Optional launch gate: create a pre-send receipt before broadcast.
+// Run this once per tx in your shell/client flow:
+// npx --package nishvault-preflight-buy nishvault-guard-tx -- \
+//   --seller-url https://api.nishvault.com \
+//   --to "$TX_TO" \
+//   --data "$TX_DATA" \
+//   --value "$TX_VALUE"
+
+// Sign and send each transaction in order after PRE_SEND_PROOF_RECEIPT exists.
 for (const { transaction: tx } of response.transactions) {
   const hash = await wallet.sendTransaction({
     to: tx.to,
