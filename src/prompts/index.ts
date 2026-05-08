@@ -4,14 +4,14 @@ export function registerPrompts(server: McpServer) {
   server.prompt('lending-guide', 'Step-by-step guide for lending on Floe', async () => ({
     messages: [{
       role: 'user' as const,
-      content: { type: 'text' as const, text: 'Guide me through lending on Floe. Use get_markets, get_open_lend_intents, then help me create a competitive lend intent.' },
+      content: { type: 'text' as const, text: 'Guide me through lending on Floe. Use get_markets to see available pairs (including same-token markets like USDC/USDC, which allow LTVs up to 9950 bps), get_open_lend_intents, then help me create a competitive lend intent.' },
     }],
   }));
 
   server.prompt('borrowing-guide', 'Step-by-step guide for borrowing on Floe', async () => ({
     messages: [{
       role: 'user' as const,
-      content: { type: 'text' as const, text: 'Guide me through borrowing on Floe. Browse lend offers, create a counter-intent, explain collateral and liquidation risks.' },
+      content: { type: 'text' as const, text: 'Guide me through borrowing on Floe. Browse lend offers across both cross-asset markets (e.g. USDC/WETH, 800bps gap) and same-token markets (e.g. USDC/USDC, 50bps gap, up to 9950 bps LTV), create a counter-intent, and explain collateral and liquidation risks.' },
     }],
   }));
 

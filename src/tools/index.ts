@@ -55,7 +55,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
   }, async ({ loan_id }) => wrap(() => client.getLoanById(loan_id))());
 
   server.tool('get_token_price', 'Get current oracle price for collateral token.', {
-    market_id: z.string().optional().describe('Market ID. Omit for default USDC/WETH.'),
+    market_id: z.string().optional().describe('Market ID. If omitted, the backend uses its configured default market.'),
   }, async ({ market_id }) => wrap(() => client.getPrice(market_id))());
 
   server.tool('get_wallet_balance', 'Check token balances for a wallet.', {
@@ -75,7 +75,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     wallet_address: addr.describe('Lender wallet'),
     amount: z.string().describe('Amount in raw token units'),
     min_interest_rate_bps: z.number().int().min(1).max(10000).describe('Min annual rate in bps (500 = 5%)'),
-    max_ltv_bps: z.number().int().min(1000).max(9500).describe('Max LTV in bps (7000 = 70%)'),
+    max_ltv_bps: z.number().int().min(1000).max(9950).describe('Max LTV in bps (7000 = 70%). Two-token markets cap at 9500; same-token markets (e.g. USDC/USDC) cap at 9950.'),
     min_duration_days: z.number().int().min(1).describe('Min duration in days'),
     max_duration_days: z.number().int().min(1).describe('Max duration in days'),
     market_id: z.string().optional().describe('Market ID. Omit for default.'),
