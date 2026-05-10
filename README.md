@@ -246,7 +246,7 @@ All write tools return **unsigned transactions** — the server never holds priv
 ### Example: Get a USDC Credit Line
 
 ```
-Agent: "I need 9,500 USDC working capital"
+Agent: "I need 9,950 USDC working capital"
 
 1. get_open_lend_intents → browse USDC/USDC offers
 2. create_counter_intent(offer_hash, wallet) → unsigned txs
@@ -337,7 +337,7 @@ The MCP server is a thin HTTP client. All protocol logic, indexer queries, and R
 
 Floe is an **intent-based** lending protocol on Base, surfaced as the lending layer of the Financial OS:
 
-1. **Primary market (USDC/USDC):** Deposit USDC as collateral, borrow up to 95% as a credit line. No price-volatility risk — same-token market.
+1. **Primary market (USDC/USDC):** Deposit USDC as collateral, borrow up to 99.5% as a credit line. No price-volatility risk — same-token market.
 2. **Volatile markets:** Also supports WETH and cbBTC collateral for crypto-native use cases.
 3. **Solvers** automatically match compatible intent pairs on-chain.
 4. **Loans** are created with matched terms, collateral locked in per-loan isolated escrow.
