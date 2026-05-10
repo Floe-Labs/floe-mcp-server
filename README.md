@@ -19,7 +19,7 @@ Connect Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible clien
 | 01 | **Agent Wallet** | `GA` | `get_wallet_balance`, `get_credit_remaining`, `get_loan_state` |
 | 02 | **Fiat on/off-ramp** | Dashboard-driven | Onramp links generated server-side; no MCP tool required today. Tool surface `Roadmap`. |
 | 03 | **Secured working capital** | `GA` | `get_markets`, `get_market_details`, `get_open_lend_intents`, `get_open_borrow_intents`, `get_intent_details`, `get_loan`, `get_user_loans`, `get_loan_health`, `get_liquidation_quote`, `create_lend_intent`, `create_borrow_intent`, `create_counter_intent`, `repay_loan`, `add_collateral`, `withdraw_collateral`, `liquidate_loan`, `revoke_intent`, `approve_token`, `get_accrued_interest`, `get_token_price`, `check_compatibility`, `calculate_risk`, `estimate_interest` |
-| 04 | **Unsecured working capital** | `Preview` | Coming soon — [join the waitlist](https://floelabs.xyz/unsecured) |
+| 04 | **Unsecured working capital** | `Preview` | Coming soon — email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for the design partner program |
 | 05 | **x402 payment facilitator** | `GA` (preflight + gating) | `estimate_x402_cost`. Payment execution flows through `https://x402.floelabs.xyz/proxy/fetch`. |
 | 06 | **Credit & trust bureau** | Reader `Beta` · Writer `Preview` | `list_credit_thresholds`, `register_credit_threshold`, `delete_credit_threshold`. Portable ERC-8004 reader tool in Beta. |
 
@@ -208,6 +208,8 @@ Lets an agent answer "do I have credit?", "is this call worth it?", and "where a
 - `get_credit_profile` — read a portable ERC-8004 credit record (`Preview`)
 - `request_unsecured_credit` — apply for receivables-backed credit (`Preview`)
 - `create_onramp_link` — generate a one-shot fiat on-ramp URL for an agent operator (`Roadmap`)
+
+Email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for early access to any of these.
 
 ---
 
