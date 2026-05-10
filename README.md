@@ -4,11 +4,42 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-MCP server for Floe — working capital for AI agents on Base. Connect Claude, Cursor, or any MCP client to get USDC credit lines, manage loans, and pay x402 APIs.
+**The Financial OS for AI Agents — exposed over MCP.**
 
-**3,000+ secured working capital lines issued. Zero defaults.**
+Connect Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client to the full Floe stack: wallet, on-ramp, working capital, x402 payments, and credit thresholds. 36 tools across the six components, with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
 
-Deposit USDC, borrow up to 95% — fixed rates, gas-free, no crypto complexity. Also supports WETH and cbBTC collateral for volatile markets.
+> **Proof points:** 3,000+ secured working capital lines issued · zero defaults · 13,000+ x402 APIs reachable via the Floe proxy.
+
+---
+
+## The Floe Stack (what this MCP server exposes)
+
+| # | Component | Status | Tools |
+|---|---|---|---|
+| 01 | **Agent Wallet** | `GA` | `get_wallet_balance`, `get_credit_remaining`, `get_loan_state` |
+| 02 | **Fiat on/off-ramp** | Dashboard-driven | On-ramp links generated server-side; no MCP tool required today. Tool surface `Roadmap`. |
+| 03 | **Secured working capital** | `GA` | `get_markets`, `get_market_details`, `get_open_lend_intents`, `get_open_borrow_intents`, `get_intent_details`, `get_loan`, `get_user_loans`, `get_loan_health`, `get_liquidation_quote`, `create_lend_intent`, `create_borrow_intent`, `create_counter_intent`, `repay_loan`, `add_collateral`, `withdraw_collateral`, `liquidate_loan`, `revoke_intent`, `approve_token`, `get_accrued_interest`, `get_token_price`, `check_compatibility`, `calculate_risk`, `estimate_interest` |
+| 04 | **Unsecured working capital** | `Preview` | Coming soon — email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for the design partner program |
+| 05 | **x402 payment facilitator** | `GA` (preflight + gating) | `estimate_x402_cost`. Payment execution flows through `https://x402.floelabs.xyz/proxy/fetch`. |
+| 06 | **Credit & trust bureau** | Writer `GA` · Portable reader `Preview` | `list_credit_thresholds`, `register_credit_threshold`, `delete_credit_threshold`. Portable ERC-8004 reader tool is on the roadmap (see below). |
+
+Plus utility tools — `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` — shared across components.
+
+---
+
+## Tested clients
+
+| Client | Status |
+|---|---|
+| Claude Desktop | `GA` |
+| Claude Code | `GA` |
+| Cursor | `GA` |
+| Continue / Cline | Best-effort |
+| CrewAI (via `langchain-mcp-adapters`) | `Beta` |
+| OpenAI Agents SDK | `Preview` (MCP fallback while native adapter ships) |
+| ElizaOS | `Preview` |
+
+---
 
 ## Quick Start
 
@@ -75,13 +106,27 @@ npm install -g @floelabs/mcp-server
 FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 ```
 
-## Get an API Key
+---
+
+## Auth model
+
+Auth source depends on transport:
+
+| Transport | Identity source |
+|---|---|
+| Remote HTTP (`https://mcp.floelabs.xyz/mcp`) | `Authorization: Bearer floe_live_...` header (per-request) |
+| Local stdio (`floe-mcp` / `npx @floelabs/mcp-server`) | `FLOE_API_KEY` env var |
+| Local HTTP (self-hosted) | Bearer header takes precedence; when `ALLOW_SHARED_KEY_FALLBACK=true`, the server falls back to `FLOE_API_KEY` if no header is sent |
+
+Get a key:
 
 1. Go to [dev-dashboard.floelabs.xyz](https://dev-dashboard.floelabs.xyz)
 2. Connect your wallet
 3. Create an API key — you'll get a `floe_live_...` key
 
-> **Fund with fiat:** You can fund your wallet with USDC via Coinbase — credit card or bank transfer — directly from the dashboard. No crypto on-ramp needed.
+> **Fund with fiat:** You can fund your wallet with USDC via Coinbase — credit card, bank transfer, Apple Pay, Google Pay — directly from the dashboard. No crypto on-ramp needed.
+
+---
 
 ## Environment Variables
 
@@ -90,23 +135,27 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | `FLOE_API_KEY` | Yes | — | Your Floe API key (`floe_live_...`) |
 | `FLOE_API_BASE_URL` | No | `https://credit-api.floelabs.xyz` | API endpoint |
 | `MCP_PORT` | No | `3100` | HTTP server port (non-stdio mode) |
+| `ALLOW_SHARED_KEY_FALLBACK` | No | `false` | Allow env-var key fallback when no Bearer header is sent (HTTP mode only) |
 
-## What Can Agents Do?
+---
 
-| Category | Capabilities |
-|----------|-------------|
-| **Working Capital** | Deposit USDC, borrow up to 95% instantly — same-token market, no price risk |
-| **Volatile Markets** | Also supports WETH/cbBTC collateral for crypto-native agents |
-| **Markets** | Browse lending markets, check rates, view liquidity |
-| **Intents** | Create lend/borrow offers, accept existing offers, cancel intents |
-| **Loans** | Monitor loan health, repay, add/withdraw collateral, liquidate |
-| **x402 Payments** | Pay x402 APIs with credit — zero-touch, no pre-funding |
-| **Transactions** | Build unsigned txs, simulate, broadcast signed txs, check receipts |
-| **Analysis** | Check intent compatibility, calculate risk metrics, estimate interest |
+## What can agents do?
+
+| Floe component | Capability |
+|---|---|
+| Agent Wallet | Read balances, credit headroom, loan-lifecycle state |
+| Secured working capital | Browse markets, post intents, match offers, repay, manage collateral, liquidate |
+| x402 payment facilitator | Preflight x402 costs against current credit and spend limits |
+| Credit & trust bureau | Register webhook thresholds on credit utilization; list / delete |
+
+---
 
 ## Tools (36)
 
-### Read Tools
+Below the tools are listed by request type. Mapping to the six product components is in the table above.
+
+### Read tools
+
 | Tool | Description |
 |------|-------------|
 | `get_markets` | List active lending markets with rates and liquidity |
@@ -122,7 +171,8 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | `get_wallet_balance` | Token balances for a wallet |
 | `get_accrued_interest` | Interest accrued on a loan |
 
-### Write Tools (return unsigned transactions)
+### Write tools (return unsigned transactions)
+
 | Tool | Description |
 |------|-------------|
 | `create_lend_intent` | Create a lending offer |
@@ -135,23 +185,25 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | `revoke_intent` | Cancel an active intent |
 | `approve_token` | Approve token spending for the protocol |
 
-### Analysis Tools
+### Analysis tools
+
 | Tool | Description |
 |------|-------------|
 | `check_compatibility` | Check if two intents can match |
 | `calculate_risk` | Risk metrics: LTV, liquidation price, buffer |
 | `estimate_interest` | Interest estimate for given loan terms |
 
-### Utility Tools
+### Utility tools
+
 | Tool | Description |
 |------|-------------|
 | `simulate_transaction` | Dry-run a transaction (eth_call) |
 | `broadcast_transaction` | Submit a signed transaction |
 | `get_transaction_status` | Check transaction receipt |
 
-### Agent Awareness Tools
+### Agent-awareness tools
 
-Let's an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`); the calling identity is taken from the bearer token.
+Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`). The calling identity is taken from the Bearer header in HTTP mode, or from `FLOE_API_KEY` in stdio mode (and as a fallback in HTTP mode when `ALLOW_SHARED_KEY_FALLBACK=true`).
 
 | Tool | Description |
 |------|-------------|
@@ -164,6 +216,16 @@ Let's an agent answer "do I have credit?", "is this call worth it?", and "where 
 | `register_credit_threshold` | Register a webhook trigger at a utilization threshold (cap: 20 per agent) |
 | `delete_credit_threshold` | Remove a registered threshold |
 | `estimate_x402_cost` | Preflight an x402 URL — returns cost + reflection against your credit, no payment |
+
+### Roadmap tools (not yet shipped)
+
+- `get_credit_profile` — read a portable ERC-8004 credit record (`Preview`)
+- `request_unsecured_credit` — apply for receivables-backed credit (`Preview`)
+- `create_onramp_link` — generate a one-shot fiat on-ramp URL for an agent operator (`Roadmap`)
+
+Email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for early access to any of these.
+
+---
 
 ## Transaction Flow
 
@@ -184,7 +246,7 @@ All write tools return **unsigned transactions** — the server never holds priv
 ### Example: Get a USDC Credit Line
 
 ```
-Agent: "I need 9,500 USDC working capital"
+Agent: "I need 9,950 USDC working capital"
 
 1. get_open_lend_intents → browse USDC/USDC offers
 2. create_counter_intent(offer_hash, wallet) → unsigned txs
@@ -216,6 +278,8 @@ for (const { transaction: tx } of response.transactions) {
   // Wait for confirmation before next step
 }
 ```
+
+---
 
 ## Programmatic Usage
 
@@ -250,6 +314,12 @@ async with MultiServerMCPClient({
     # Use tools in your agent
 ```
 
+### CrewAI
+
+CrewAI agents can consume the Floe MCP tools via `langchain-mcp-adapters`. A runnable crew is available in [floe-examples/crewai-demo](https://github.com/Floe-Labs/floe-examples).
+
+---
+
 ## Architecture
 
 ```
@@ -261,11 +331,13 @@ Your Agent → MCP Server → credit-api.floelabs.xyz → Envio Indexer / Base R
 
 The MCP server is a thin HTTP client. All protocol logic, indexer queries, and RPC calls happen in the private Floe API backend. This package contains only tool definitions and `fetch()` calls.
 
-## Protocol Overview
+---
 
-Floe is an **intent-based** lending protocol on Base:
+## Protocol overview
 
-1. **Primary market (USDC/USDC):** Deposit USDC as collateral, borrow up to 95% as a credit line. No price-volatility risk — same-token market. This is how most AI agents get working capital.
+Floe is an **intent-based** lending protocol on Base, surfaced as the lending layer of the Financial OS:
+
+1. **Primary market (USDC/USDC):** Deposit USDC as collateral, borrow up to 99.5% as a credit line. No price-volatility risk — same-token market.
 2. **Volatile markets:** Also supports WETH and cbBTC collateral for crypto-native use cases.
 3. **Solvers** automatically match compatible intent pairs on-chain.
 4. **Loans** are created with matched terms, collateral locked in per-loan isolated escrow.
@@ -278,6 +350,8 @@ Key concepts:
 - **Health Factor**: Ratio of collateral value to debt — below threshold triggers liquidation
 - **LTV (Loan-to-Value)**: Borrower's debt as % of collateral value
 
+---
+
 ## Contract Addresses (Base Mainnet)
 
 | Contract | Address |
@@ -285,14 +359,18 @@ Key concepts:
 | LendingIntentMatcher | `0x17946cD3e180f82e632805e5549EC913330Bb175` |
 | PriceOracle | `0xEA058a06b54dce078567f9aa4dBBE82a100210Cc` |
 | LendingViews | `0x9101027166bE205105a9E0c68d6F14f21f6c5003` |
+| x402 Facilitator | `0x58EDdE022FFDAD3Fb0Fb0E7D51eb05AaF66a31f1` |
+
+---
 
 ## Links
 
 - [Website](https://floelabs.xyz)
 - [Dashboard](https://dev-dashboard.floelabs.xyz)
 - [Documentation](https://floe-labs.gitbook.io/docs)
-- [AgentKit Actions (TypeScript)](https://github.com/floelabs/agentkit-actions)
-- [AgentKit Actions (Python)](https://github.com/floelabs/agentkit-actions-py)
+- [TypeScript SDK (`floe-agent`)](https://github.com/Floe-Labs/agentkit-actions)
+- [Python SDK (`floe-agentkit-actions`)](https://github.com/Floe-Labs/agentkit-actions-py)
+- [End-to-end examples](https://github.com/Floe-Labs/floe-examples)
 
 ## License
 
