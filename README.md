@@ -6,7 +6,7 @@
 
 **The Financial OS for AI Agents — exposed over MCP.**
 
-Connect Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client to the full Floe stack: wallet, on-ramp, working capital, x402 payments, and credit thresholds. 36 tools across the six components, with a single Bearer-token auth model.
+Connect Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client to the full Floe stack: wallet, on-ramp, working capital, x402 payments, and credit thresholds. 36 tools across the six components, with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
 
 > **Proof points:** 3,000+ secured working capital lines issued · zero defaults · 13,000+ x402 APIs reachable via the Floe proxy.
 
@@ -17,11 +17,11 @@ Connect Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible clien
 | # | Component | Status | Tools |
 |---|---|---|---|
 | 01 | **Agent Wallet** | `GA` | `get_wallet_balance`, `get_credit_remaining`, `get_loan_state` |
-| 02 | **Fiat on/off-ramp** | Dashboard-driven | Onramp links generated server-side; no MCP tool required today. Tool surface `Roadmap`. |
+| 02 | **Fiat on/off-ramp** | Dashboard-driven | On-ramp links generated server-side; no MCP tool required today. Tool surface `Roadmap`. |
 | 03 | **Secured working capital** | `GA` | `get_markets`, `get_market_details`, `get_open_lend_intents`, `get_open_borrow_intents`, `get_intent_details`, `get_loan`, `get_user_loans`, `get_loan_health`, `get_liquidation_quote`, `create_lend_intent`, `create_borrow_intent`, `create_counter_intent`, `repay_loan`, `add_collateral`, `withdraw_collateral`, `liquidate_loan`, `revoke_intent`, `approve_token`, `get_accrued_interest`, `get_token_price`, `check_compatibility`, `calculate_risk`, `estimate_interest` |
 | 04 | **Unsecured working capital** | `Preview` | Coming soon — email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for the design partner program |
 | 05 | **x402 payment facilitator** | `GA` (preflight + gating) | `estimate_x402_cost`. Payment execution flows through `https://x402.floelabs.xyz/proxy/fetch`. |
-| 06 | **Credit & trust bureau** | Reader `Beta` · Writer `Preview` | `list_credit_thresholds`, `register_credit_threshold`, `delete_credit_threshold`. Portable ERC-8004 reader tool in Beta. |
+| 06 | **Credit & trust bureau** | Writer `GA` · Portable reader `Preview` | `list_credit_thresholds`, `register_credit_threshold`, `delete_credit_threshold`. Portable ERC-8004 reader tool is on the roadmap (see below). |
 
 Plus utility tools — `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` — shared across components.
 
@@ -108,7 +108,17 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 
 ---
 
-## Get an API Key
+## Auth model
+
+Auth source depends on transport:
+
+| Transport | Identity source |
+|---|---|
+| Remote HTTP (`https://mcp.floelabs.xyz/mcp`) | `Authorization: Bearer floe_live_...` header (per-request) |
+| Local stdio (`floe-mcp` / `npx @floelabs/mcp-server`) | `FLOE_API_KEY` env var |
+| Local HTTP (self-hosted) | Bearer header takes precedence; when `ALLOW_SHARED_KEY_FALLBACK=true`, the server falls back to `FLOE_API_KEY` if no header is sent |
+
+Get a key:
 
 1. Go to [dev-dashboard.floelabs.xyz](https://dev-dashboard.floelabs.xyz)
 2. Connect your wallet
@@ -125,7 +135,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 | `FLOE_API_KEY` | Yes | — | Your Floe API key (`floe_live_...`) |
 | `FLOE_API_BASE_URL` | No | `https://credit-api.floelabs.xyz` | API endpoint |
 | `MCP_PORT` | No | `3100` | HTTP server port (non-stdio mode) |
-| `ALLOW_SHARED_KEY_FALLBACK` | No | `false` | Allow env-var key fallback when no Bearer header is sent |
+| `ALLOW_SHARED_KEY_FALLBACK` | No | `false` | Allow env-var key fallback when no Bearer header is sent (HTTP mode only) |
 
 ---
 
@@ -145,6 +155,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
 Below the tools are listed by request type. Mapping to the six product components is in the table above.
 
 ### Read tools
+
 | Tool | Description |
 |------|-------------|
 | `get_markets` | List active lending markets with rates and liquidity |
@@ -161,6 +172,7 @@ Below the tools are listed by request type. Mapping to the six product component
 | `get_accrued_interest` | Interest accrued on a loan |
 
 ### Write tools (return unsigned transactions)
+
 | Tool | Description |
 |------|-------------|
 | `create_lend_intent` | Create a lending offer |
@@ -174,6 +186,7 @@ Below the tools are listed by request type. Mapping to the six product component
 | `approve_token` | Approve token spending for the protocol |
 
 ### Analysis tools
+
 | Tool | Description |
 |------|-------------|
 | `check_compatibility` | Check if two intents can match |
@@ -181,6 +194,7 @@ Below the tools are listed by request type. Mapping to the six product component
 | `estimate_interest` | Interest estimate for given loan terms |
 
 ### Utility tools
+
 | Tool | Description |
 |------|-------------|
 | `simulate_transaction` | Dry-run a transaction (eth_call) |
@@ -189,7 +203,7 @@ Below the tools are listed by request type. Mapping to the six product component
 
 ### Agent-awareness tools
 
-Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`); the calling identity is taken from the bearer token.
+Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`). The calling identity is taken from the Bearer header in HTTP mode, or from `FLOE_API_KEY` in stdio mode (and as a fallback in HTTP mode when `ALLOW_SHARED_KEY_FALLBACK=true`).
 
 | Tool | Description |
 |------|-------------|
