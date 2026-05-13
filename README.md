@@ -143,6 +143,14 @@ npx floe-agent register --name my-agent --borrow-limit 10000
 floe-agent register --name my-agent --borrow-limit 10000
 ```
 
+Get a **developer key** (only if you need multi-tenant access across all your agents):
+
+1. Go to [dev-dashboard.floelabs.xyz/keys](https://dev-dashboard.floelabs.xyz/keys)
+2. Click **Create Key**, label it, pick `read` or `read_write` permissions
+3. Copy the `floe_live_<base62>` key shown once
+
+Developer keys span the whole developer account and have a separate rate limit (100 req/min). Agent-awareness tools (`get_credit_remaining`, `get_spend_limit`, etc) return 401 with a developer key because the caller is the developer, not a single agent — use an agent key for those. See the [API Keys docs](https://floe-labs.gitbook.io/docs/developers/api-keys) for the full taxonomy.
+
 > **Fund with fiat:** You can fund your wallet with USDC via Coinbase — credit card, bank transfer, Apple Pay, Google Pay — directly from the dashboard. No crypto on-ramp needed.
 
 ### Multiple agents
