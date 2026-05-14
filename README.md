@@ -54,7 +54,7 @@ Point your MCP client directly at the hosted endpoint — no installation needed
     "floe": {
       "url": "https://mcp.floelabs.xyz/mcp",
       "headers": {
-        "Authorization": "Bearer floe_live_YOUR_API_KEY"
+        "Authorization": "Bearer floe_YOUR_AGENT_KEY"
       }
     }
   }
@@ -66,7 +66,7 @@ Point your MCP client directly at the hosted endpoint — no installation needed
 Run the server locally. It proxies all requests to the Floe API.
 
 ```bash
-FLOE_API_KEY=floe_live_YOUR_API_KEY npx @floelabs/mcp-server
+FLOE_API_KEY=floe_YOUR_AGENT_KEY npx @floelabs/mcp-server
 ```
 
 **Claude Desktop config:**
@@ -77,7 +77,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY npx @floelabs/mcp-server
       "command": "npx",
       "args": ["@floelabs/mcp-server"],
       "env": {
-        "FLOE_API_KEY": "floe_live_YOUR_API_KEY"
+        "FLOE_API_KEY": "floe_YOUR_AGENT_KEY"
       }
     }
   }
@@ -92,7 +92,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY npx @floelabs/mcp-server
       "command": "npx",
       "args": ["@floelabs/mcp-server"],
       "env": {
-        "FLOE_API_KEY": "floe_live_YOUR_API_KEY"
+        "FLOE_API_KEY": "floe_YOUR_AGENT_KEY"
       }
     }
   }
@@ -103,7 +103,7 @@ FLOE_API_KEY=floe_live_YOUR_API_KEY npx @floelabs/mcp-server
 
 ```bash
 npm install -g @floelabs/mcp-server
-FLOE_API_KEY=floe_live_YOUR_API_KEY floe-mcp
+FLOE_API_KEY=floe_YOUR_AGENT_KEY floe-mcp
 ```
 
 ---
@@ -114,17 +114,65 @@ Auth source depends on transport:
 
 | Transport | Identity source |
 |---|---|
-| Remote HTTP (`https://mcp.floelabs.xyz/mcp`) | `Authorization: Bearer floe_live_...` header (per-request) |
+| Remote HTTP (`https://mcp.floelabs.xyz/mcp`) | `Authorization: Bearer <key>` header (per-request) |
 | Local stdio (`floe-mcp` / `npx @floelabs/mcp-server`) | `FLOE_API_KEY` env var |
 | Local HTTP (self-hosted) | Bearer header takes precedence; when `ALLOW_SHARED_KEY_FALLBACK=true`, the server falls back to `FLOE_API_KEY` if no header is sent |
 
-Get a key:
+### Which key to use
+
+Two key formats unlock different surfaces:
+
+| Key format | Scope | When to use |
+|---|---|---|
+| `floe_<64-hex>` (**agent key**, recommended) | One specific agent | Default for MCP. Required for agent-awareness tools (`get_credit_remaining`, `get_loan_state`, `get_spend_limit`, etc). One MCP session = one agent. |
+| `floe_live_<base62>` (developer key) | Whole developer account | Use only if you're running a multi-tenant integration that needs to see *all* agents. Agent-awareness tools return 401 because the caller is the developer, not a single agent. |
+
+Get an **agent key**:
 
 1. Go to [dev-dashboard.floelabs.xyz](https://dev-dashboard.floelabs.xyz)
-2. Connect your wallet
-3. Create an API key — you'll get a `floe_live_...` key
+2. Connect your wallet and **Create an agent** (name + borrow limit + max rate)
+3. Copy the `floe_<64-hex>` key shown at the end of the wizard — it is revealed once
+
+You can also mint one from the CLI without visiting the dashboard:
+
+```bash
+# TypeScript SDK
+npx floe-agent register --name my-agent --borrow-limit 10000
+
+# Python SDK
+floe-agent register --name my-agent --borrow-limit 10000
+```
+
+Get a **developer key** (only if you need multi-tenant access across all your agents):
+
+1. Go to [dev-dashboard.floelabs.xyz/keys](https://dev-dashboard.floelabs.xyz/keys)
+2. Click **Create Key**, label it, pick `read` or `read_write` permissions
+3. Copy the `floe_live_<base62>` key shown once
+
+Developer keys span the whole developer account and have a separate rate limit (100 req/min). Agent-awareness tools (`get_credit_remaining`, `get_spend_limit`, etc) return 401 with a developer key because the caller is the developer, not a single agent — use an agent key for those. See the [API Keys docs](https://floe-labs.gitbook.io/docs/developers/api-keys) for the full taxonomy.
 
 > **Fund with fiat:** You can fund your wallet with USDC via Coinbase — credit card, bank transfer, Apple Pay, Google Pay — directly from the dashboard. No crypto on-ramp needed.
+
+### Multiple agents
+
+One Floe developer can own many agents. To run several MCP sessions side by side (e.g. a research agent and a trading agent), mint one key per agent and configure each MCP client entry with its own key:
+
+```json
+{
+  "mcpServers": {
+    "floe-research": {
+      "url": "https://mcp.floelabs.xyz/mcp",
+      "headers": { "Authorization": "Bearer floe_KEY_FOR_RESEARCH_AGENT" }
+    },
+    "floe-trading": {
+      "url": "https://mcp.floelabs.xyz/mcp",
+      "headers": { "Authorization": "Bearer floe_KEY_FOR_TRADING_AGENT" }
+    }
+  }
+}
+```
+
+Each session is scoped to one agent — credit lines, spend limits, and webhooks stay isolated.
 
 ---
 
@@ -132,7 +180,7 @@ Get a key:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `FLOE_API_KEY` | Yes | — | Your Floe API key (`floe_live_...`) |
+| `FLOE_API_KEY` | Yes | — | Your Floe API key (`floe_<64-hex>` agent key recommended; `floe_live_<base62>` developer key also accepted) |
 | `FLOE_API_BASE_URL` | No | `https://credit-api.floelabs.xyz` | API endpoint |
 | `MCP_PORT` | No | `3100` | HTTP server port (non-stdio mode) |
 | `ALLOW_SHARED_KEY_FALLBACK` | No | `false` | Allow env-var key fallback when no Bearer header is sent (HTTP mode only) |
@@ -292,7 +340,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 const client = new Client({ name: "my-agent" });
 await client.connect(new StreamableHTTPClientTransport(
   new URL("https://mcp.floelabs.xyz/mcp"),
-  { requestInit: { headers: { "Authorization": "Bearer floe_live_..." } } }
+  { requestInit: { headers: { "Authorization": "Bearer floe_..." } } }
 ));
 
 const markets = await client.callTool("get_markets", {});
@@ -308,7 +356,7 @@ const counter = await client.callTool("create_counter_intent", {
 from langchain_mcp_adapters import MultiServerMCPClient
 
 async with MultiServerMCPClient({
-    "floe": {"url": "https://mcp.floelabs.xyz/mcp", "headers": {"Authorization": "Bearer floe_live_..."}}
+    "floe": {"url": "https://mcp.floelabs.xyz/mcp", "headers": {"Authorization": "Bearer floe_..."}}
 }) as client:
     tools = client.get_tools()
     # Use tools in your agent
