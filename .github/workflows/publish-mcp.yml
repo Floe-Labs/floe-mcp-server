@@ -1,0 +1,83 @@
+name: Publish to MCP Registry
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # Required for GitHub OIDC auth with MCP Registry
+
+concurrency:
+  group: publish-mcp-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Sync version from tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "Publishing version: $TAG"
+          npm version "$TAG" --no-git-tag-version --allow-same-version
+
+      - name: Update server.json version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          node -e "
+            const fs = require('fs');
+            const s = JSON.parse(fs.readFileSync('server.json','utf8'));
+            s.version = '$TAG';
+            s.packages.forEach(p => p.version = '$TAG');
+            fs.writeFileSync('server.json', JSON.stringify(s, null, 2) + '\n');
+          "
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-mcp-registry:
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz
+          chmod +x mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
+
+      - name: Sync server.json version from tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          node -e "
+            const fs = require('fs');
+            const s = JSON.parse(fs.readFileSync('server.json','utf8'));
+            s.version = '$TAG';
+            s.packages.forEach(p => p.version = '$TAG');
+            fs.writeFileSync('server.json', JSON.stringify(s, null, 2) + '\n');
+          "
+
+      - name: Authenticate with MCP Registry
+        run: mcp-publisher login github --token "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Publish to MCP Registry
+        run: mcp-publisher publish
