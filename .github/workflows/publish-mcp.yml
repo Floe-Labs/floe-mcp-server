@@ -83,7 +83,7 @@ jobs:
           ASSET="mcp-publisher_linux_amd64.tar.gz"
           BASE_URL="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
           curl -fsSL -o "${ASSET}" "${BASE_URL}/${ASSET}"
-          curl -fsSL -o checksums.txt "${BASE_URL}/checksums.txt"
+          curl -fsSL -o checksums.txt "${BASE_URL}/registry_${MCP_PUBLISHER_VERSION#v}_checksums.txt"
           grep "  ${ASSET}$" checksums.txt | sha256sum -c -
           tar -xzf "${ASSET}"
           chmod +x mcp-publisher
