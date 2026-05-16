@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for GitHub OIDC auth with MCP Registry
 
 concurrency:
   group: publish-mcp-${{ github.ref }}
@@ -72,6 +71,9 @@ jobs:
   publish-mcp-registry:
     needs: publish-npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC auth with MCP Registry — scoped to this job only
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -115,7 +117,8 @@ jobs:
             echo "Waiting for npm propagation (attempt $i/5)..."
             sleep 10
           done
-          echo "Warning: $PKG_NAME@$TAG not yet visible on npm, proceeding anyway."
+          echo "Error: $PKG_NAME@$TAG not visible on npm after 5 attempts. Aborting."
+          exit 1
 
       - name: Authenticate with MCP Registry (OIDC)
         run: mcp-publisher login github-oidc
