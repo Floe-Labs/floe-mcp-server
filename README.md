@@ -4,9 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-**The Financial OS for AI Agents — exposed over MCP.**
+**Credit and payments for AI agent developers — over MCP. No crypto required.**
 
-Connect Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client to the full Floe stack: wallet, on-ramp, working capital, x402 payments, and credit thresholds. 36 tools across the six components, with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
+Give Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client an x402 payment surface and a Floe credit line.
+
+1. **Sign up with email + a funding source.** Card, Apple Pay, Google Pay, or bank transfer. Floe provisions your wallets in the background — no MetaMask, no seed phrase, no gas token.
+2. **Floe issues an x402 credit line to your agent's wallet.** Set spending controls — per-call cap, daily limit, allowed destinations.
+3. **Your MCP client pays vendors per-call; you get real-time visibility.** Every call is a typed receipt: target URL, amount, status, time. Reconcile, alert, or revoke from the dashboard.
+
+36 tools, transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
 
 > **Proof points:** 3,000+ secured working capital lines issued · zero defaults · 13,000+ x402 APIs reachable via the Floe proxy.
 

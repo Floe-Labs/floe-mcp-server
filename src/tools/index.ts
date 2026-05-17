@@ -55,7 +55,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
   }, async ({ loan_id }) => wrap(() => client.getLoanById(loan_id))());
 
   server.tool('get_token_price', 'Get current oracle price for collateral token.', {
-    market_id: z.string().optional().describe('Market ID. If omitted, the backend uses its configured default market.'),
+    market_id: z.string().optional().describe('Market ID (bytes32). If omitted, the backend uses its configured default market (USDC/USDC on Base Mainnet).'),
   }, async ({ market_id }) => wrap(() => client.getPrice(market_id))());
 
   server.tool('get_wallet_balance', 'Check token balances for a wallet.', {
@@ -75,10 +75,10 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     wallet_address: addr.describe('Lender wallet'),
     amount: z.string().describe('Amount in raw token units'),
     min_interest_rate_bps: z.number().int().min(1).max(10000).describe('Min annual rate in bps (500 = 5%)'),
-    max_ltv_bps: z.number().int().min(1000).max(9950).describe('Max LTV in bps (7000 = 70%). Two-token markets cap at 9500; same-token markets (e.g. USDC/USDC) cap at 9950.'),
+    max_ltv_bps: z.number().int().min(1000).max(9950).describe('Max LTV in bps (the liquidation threshold on the resulting loan). Volatile-collateral markets (USDC/WETH, USDC/cbBTC) cap at 9500 (95%). Same-token markets (e.g. USDC/USDC) cap at 9950 (99.5%) — values above 9500 are the aggressive opt-in, only safe for short-duration loans because the interest-accrual headroom shrinks.'),
     min_duration_days: z.number().int().min(1).describe('Min duration in days'),
     max_duration_days: z.number().int().min(1).describe('Max duration in days'),
-    market_id: z.string().optional().describe('Market ID. Omit for default.'),
+    market_id: z.string().optional().describe('Market ID (bytes32). Omit to use the USDC/USDC same-token market on Base Mainnet — the recommended default for AI agents (no price risk, only interest-accrual liquidation).'),
   }, async (params) => {
     if (params.min_duration_days > params.max_duration_days) {
       return errorResult('INVALID_ARGUMENT', { message: 'min_duration_days must be <= max_duration_days' });
@@ -93,8 +93,8 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     max_interest_rate_bps: z.number().int().min(1).max(10000).describe('Max annual rate in bps'),
     min_duration_days: z.number().int().min(1).describe('Min duration in days'),
     max_duration_days: z.number().int().min(1).describe('Max duration in days'),
-    min_ltv_bps: z.number().int().optional().default(8000).describe('Min LTV in bps'),
-    market_id: z.string().optional().describe('Market ID. Omit for default.'),
+    min_ltv_bps: z.number().int().optional().default(8000).describe('Min LTV in bps (default 8000 = 80%). For agents pushing the USDC/USDC market to 99% LTV, pass 9900. Same-token markets need only a 50bps gap to the lender\'s max_ltv_bps; volatile markets need 800bps.'),
+    market_id: z.string().optional().describe('Market ID (bytes32). Omit to use the USDC/USDC same-token market on Base Mainnet — the recommended default for AI agents (no price risk, only interest-accrual liquidation).'),
   }, async (params) => {
     if (params.min_duration_days > params.max_duration_days) {
       return errorResult('INVALID_ARGUMENT', { message: 'min_duration_days must be <= max_duration_days' });
