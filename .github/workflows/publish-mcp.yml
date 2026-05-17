@@ -1,0 +1,127 @@
+name: Publish to npm + MCP Registry
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-mcp-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: tag '$TAG' is not a valid semver version (must match X.Y.Z)"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync version from tag
+        env:
+          TAG: ${{ steps.version.outputs.version }}
+        run: npm version "$TAG" --no-git-tag-version --allow-same-version
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Check if already published
+        id: check
+        env:
+          TAG: ${{ steps.version.outputs.version }}
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          if npm view "$PKG_NAME@$TAG" version > /dev/null 2>&1; then
+            echo "$PKG_NAME@$TAG already published, skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.check.outputs.should_publish == 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-mcp-registry:
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC auth with MCP Registry — scoped to this job only
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: "v1.7.9"
+        run: |
+          set -euo pipefail
+          ASSET="mcp-publisher_linux_amd64.tar.gz"
+          BASE_URL="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl -fsSL -o "${ASSET}" "${BASE_URL}/${ASSET}"
+          curl -fsSL -o checksums.txt "${BASE_URL}/registry_${MCP_PUBLISHER_VERSION#v}_checksums.txt"
+          grep "  ${ASSET}$" checksums.txt | sha256sum -c -
+          tar -xzf "${ASSET}"
+          chmod +x mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
+
+      - name: Sync server.json version
+        env:
+          TAG: ${{ needs.publish-npm.outputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const version = process.env.TAG;
+            const s = JSON.parse(fs.readFileSync('server.json','utf8'));
+            s.version = version;
+            s.packages.forEach(p => p.version = version);
+            fs.writeFileSync('server.json', JSON.stringify(s, null, 2) + '\n');
+          "
+
+      - name: Wait for npm propagation
+        env:
+          TAG: ${{ needs.publish-npm.outputs.version }}
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          for i in 1 2 3 4 5; do
+            if npm view "$PKG_NAME@$TAG" version > /dev/null 2>&1; then
+              echo "$PKG_NAME@$TAG is available on npm."
+              exit 0
+            fi
+            echo "Waiting for npm propagation (attempt $i/5)..."
+            sleep 10
+          done
+          echo "Error: $PKG_NAME@$TAG not visible on npm after 5 attempts. Aborting."
+          exit 1
+
+      - name: Authenticate with MCP Registry (OIDC)
+        run: mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: mcp-publisher publish

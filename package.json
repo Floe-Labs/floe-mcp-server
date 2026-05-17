@@ -1,7 +1,8 @@
 {
   "name": "@floelabs/mcp-server",
+  "mcpName": "io.github.floe-labs/payments",
   "version": "0.2.0",
-  "description": "Floe DeFi lending protocol - MCP server for AI agents",
+  "description": "Credit and payments for AI agent developers",
   "license": "MIT",
   "type": "module",
   "bin": {
