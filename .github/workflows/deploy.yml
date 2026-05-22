@@ -25,13 +25,18 @@ jobs:
           ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
 
       - name: Add GCP host to known_hosts
+        env:
+          GCP_SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.GCP_SSH_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$GCP_SSH_HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy
+        env:
+          GCP_SSH_USER: ${{ secrets.GCP_SSH_USER }}
+          GCP_SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
         run: |
-          ssh "${{ secrets.GCP_SSH_USER }}@${{ secrets.GCP_SSH_HOST }}" bash -se <<'ENDSSH'
+          ssh "$GCP_SSH_USER@$GCP_SSH_HOST" bash -se <<'ENDSSH'
             set -euo pipefail
 
             cd /opt/floe-mcp-server
@@ -47,7 +52,6 @@ jobs:
             echo "==> Build"
             npm run build
 
-            test -f dist/index.ts.map || true
             test -f dist/index.js || { echo "dist/index.js missing after build"; exit 1; }
 
             EXPECTED_VERSION=$(node -p "require('./package.json').version")
