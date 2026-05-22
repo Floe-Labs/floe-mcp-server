@@ -1,7 +1,7 @@
 {
   "name": "@floelabs/mcp-server",
   "mcpName": "io.github.floe-labs/payments",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Credit and payments for AI agent developers",
   "license": "MIT",
   "type": "module",
