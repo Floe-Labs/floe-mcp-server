@@ -14,6 +14,8 @@ Give Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client a
 
 36 tools, transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
 
+> **$2 free credit (~200 API calls).** Your agent can start paying for APIs today — no card required. [Get started →](https://dev-dashboard.floelabs.xyz)
+
 > **Proof points:** 3,000+ secured working capital lines issued · zero defaults · 13,000+ x402 APIs reachable via the Floe proxy.
 
 ---
