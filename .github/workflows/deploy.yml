@@ -1,0 +1,88 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy floe-mcp-server to GCP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+
+      - name: Add GCP host to known_hosts
+        env:
+          GCP_KNOWN_HOSTS: ${{ secrets.GCP_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$GCP_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          GCP_SSH_USER: ${{ secrets.GCP_SSH_USER }}
+          GCP_SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
+        run: |
+          ssh "$GCP_SSH_USER@$GCP_SSH_HOST" bash -se <<'ENDSSH'
+            set -euo pipefail
+
+            cd /opt/floe-mcp-server
+
+            echo "==> Pulling latest main"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Clean install"
+            rm -rf dist node_modules
+            npm ci
+
+            echo "==> Build"
+            npm run build
+
+            test -f dist/index.js || { echo "dist/index.js missing after build"; exit 1; }
+
+            EXPECTED_VERSION=$(node -p "require('./package.json').version")
+            echo "==> Expected version: ${EXPECTED_VERSION}"
+
+            echo "==> Restarting service"
+            sudo systemctl restart floe-mcp.service
+            sleep 3
+
+            sudo systemctl is-active --quiet floe-mcp.service || {
+              echo "Service failed to start"
+              sudo journalctl -u floe-mcp.service -n 80 --no-pager
+              exit 1
+            }
+
+            sudo systemctl status floe-mcp.service --no-pager | head -15
+          ENDSSH
+
+      - name: Verify hosted /health reports new version
+        run: |
+          EXPECTED=$(node -p "require('./package.json').version")
+          echo "Expecting version: $EXPECTED"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            LIVE=$(curl -sS https://mcp.floelabs.xyz/health | sed -nE 's/.*"version":"([^"]+)".*/\1/p' || true)
+            echo "Attempt $i: live=$LIVE"
+            if [ "$LIVE" = "$EXPECTED" ]; then
+              echo "Deploy verified."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Live version did not match expected after restart."
+          exit 1
