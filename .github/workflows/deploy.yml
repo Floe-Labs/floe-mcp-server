@@ -26,10 +26,11 @@ jobs:
 
       - name: Add GCP host to known_hosts
         env:
-          GCP_SSH_HOST: ${{ secrets.GCP_SSH_HOST }}
+          GCP_KNOWN_HOSTS: ${{ secrets.GCP_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "$GCP_SSH_HOST" >> ~/.ssh/known_hosts
+          printf '%s\n' "$GCP_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy
         env:
