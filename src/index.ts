@@ -18,6 +18,23 @@ async function main() {
     console.error('[floe-mcp] Running via stdio');
   } else {
     const app = express();
+
+    app.use((req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Accept, Authorization, Mcp-Session-Id, Last-Event-ID',
+      );
+      res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+      res.setHeader('Access-Control-Max-Age', '86400');
+      res.setHeader('Vary', 'Origin');
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+      }
+      next();
+    });
+
     app.use(express.json());
 
     app.get('/health', (_req, res) => {
