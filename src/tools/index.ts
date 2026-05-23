@@ -195,7 +195,11 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
   // ═══════════════════════════════════════════════════════════════════
 
   server.tool('get_credit_remaining',
-    'Return how much USDC credit the calling agent has left. Use BEFORE deciding whether to make a paid call. Includes available, creditLimit, headroomToAutoBorrow, utilizationBps, and any session spend-limit state.',
+    'Return how much USDC credit the calling agent has left. Use BEFORE deciding whether to make a paid call. ' +
+    'Two distinct numbers: `available` (= spendable USDC right now — what the proxy actually gates on) and ' +
+    '`headroomToAutoBorrow` (= operator-delegation borrowing capacity — how much MORE the agent could draw from its credit line). ' +
+    'These differ when the agent has delegation capacity but no facility loan opened yet: ' +
+    'headroomToAutoBorrow > 0 does NOT imply available > 0. Use `available` for the spend gate.',
     {},
     wrap(() => client.getCreditRemaining()));
 
