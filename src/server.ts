@@ -3,11 +3,12 @@ import type { FloeApiClient } from './client.js';
 import { registerAllTools } from './tools/index.js';
 import { registerResources } from './resources/index.js';
 import { registerPrompts } from './prompts/index.js';
+import { VERSION } from './version.js';
 
 export function createMcpServer(client: FloeApiClient): McpServer {
   const server = new McpServer({
     name: 'floe-lending',
-    version: '0.2.0',
+    version: VERSION,
   });
 
   registerAllTools(server, client);
