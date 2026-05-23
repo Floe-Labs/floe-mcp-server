@@ -4,6 +4,7 @@ import express from 'express';
 import { loadConfig } from './config.js';
 import { FloeApiClient } from './client.js';
 import { createMcpServer } from './server.js';
+import { VERSION } from './version.js';
 
 async function main() {
   const config = loadConfig();
@@ -38,7 +39,7 @@ async function main() {
     app.use(express.json());
 
     app.get('/health', (_req, res) => {
-      res.json({ status: 'ok', version: '0.2.0', apiBaseUrl: config.apiBaseUrl });
+      res.json({ status: 'ok', version: VERSION, apiBaseUrl: config.apiBaseUrl });
     });
 
     app.post('/mcp', async (req, res) => {
