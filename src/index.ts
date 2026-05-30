@@ -28,13 +28,24 @@ async function main() {
     const app = express();
 
     // CORS: restrict to localhost origins by default. Operators can
-    // widen via MCP_TRUSTED_ORIGINS (comma-separated).
+    // widen via MCP_TRUSTED_ORIGINS (comma-separated). Entries are
+    // canonicalized via new URL().origin so trailing slashes, default
+    // ports, etc. don't silently break matching.
+    const parseOrigins = (raw: string | undefined): string[] => {
+      if (!raw) return [];
+      return raw.split(',').map(o => o.trim()).filter(Boolean).map(v => {
+        try { return new URL(v).origin; } catch {
+          console.warn(`[floe-mcp] Ignoring invalid MCP_TRUSTED_ORIGINS entry: "${v}"`);
+          return '';
+        }
+      }).filter(Boolean);
+    };
     const trustedOrigins = new Set([
       'http://localhost:3000',
       'http://127.0.0.1:3000',
       `http://localhost:${port}`,
       `http://127.0.0.1:${port}`,
-      ...(process.env.MCP_TRUSTED_ORIGINS?.split(',').map(o => o.trim()).filter(Boolean) ?? []),
+      ...parseOrigins(process.env.MCP_TRUSTED_ORIGINS),
     ]);
 
     app.use((req, res, next) => {
