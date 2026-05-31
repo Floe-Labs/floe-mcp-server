@@ -18,10 +18,41 @@ async function main() {
     await server.connect(transport);
     console.error('[floe-mcp] Running via stdio');
   } else {
+    const rawPort = process.env.MCP_PORT ?? '3100';
+    const port = Number(rawPort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(`Invalid MCP_PORT: "${rawPort}" (must be 1-65535)`);
+    }
+    const host = process.env.MCP_HOST ?? '127.0.0.1';
+
     const app = express();
 
+    // CORS: restrict to localhost origins by default. Operators can
+    // widen via MCP_TRUSTED_ORIGINS (comma-separated). Entries are
+    // canonicalized via new URL().origin so trailing slashes, default
+    // ports, etc. don't silently break matching.
+    const parseOrigins = (raw: string | undefined): string[] => {
+      if (!raw) return [];
+      return raw.split(',').map(o => o.trim()).filter(Boolean).map(v => {
+        try { return new URL(v).origin; } catch {
+          console.warn(`[floe-mcp] Ignoring invalid MCP_TRUSTED_ORIGINS entry: "${v}"`);
+          return '';
+        }
+      }).filter(Boolean);
+    };
+    const trustedOrigins = new Set([
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      `http://localhost:${port}`,
+      `http://127.0.0.1:${port}`,
+      ...parseOrigins(process.env.MCP_TRUSTED_ORIGINS),
+    ]);
+
     app.use((req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const origin = req.headers.origin;
+      if (origin && trustedOrigins.has(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      }
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
@@ -46,6 +77,20 @@ async function main() {
       const authHeader = req.headers.authorization;
       const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
       const allowFallback = process.env.ALLOW_SHARED_KEY_FALLBACK === 'true';
+
+      // Shared-key fallback is only safe when the request comes from a
+      // trusted origin. Without this check, any website visited by the
+      // operator can invoke MCP tools using the process-wide FLOE_API_KEY
+      // as an ambient credential (CVE-level CORS + auth bypass).
+      if (!bearerToken && allowFallback) {
+        const origin = req.headers.origin;
+        if (origin && !trustedOrigins.has(origin)) {
+          return res.status(403).json({
+            error: 'Cross-origin shared-key fallback is not allowed',
+            detail: 'Set MCP_TRUSTED_ORIGINS to include your origin, or pass a Bearer token',
+          });
+        }
+      }
 
       if (!bearerToken && !allowFallback) {
         return res.status(401).json({ error: 'Missing Bearer token' });
@@ -82,13 +127,6 @@ async function main() {
     app.get('/mcp', (_req, res) => res.status(405).json({ error: 'Use POST' }));
     app.delete('/mcp', (_req, res) => res.status(405).json({ error: 'Stateless server' }));
 
-    const rawPort = process.env.MCP_PORT ?? '3100';
-    const port = Number(rawPort);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error(`Invalid MCP_PORT: "${rawPort}" (must be 1-65535)`);
-    }
-
-    const host = process.env.MCP_HOST ?? '127.0.0.1';
     app.listen(port, host, () => {
       console.log(`[floe-mcp] Running at http://${host}:${port}`);
       console.log(`[floe-mcp] API: ${config.apiBaseUrl}`);
