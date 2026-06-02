@@ -130,6 +130,14 @@ export class FloeApiClient {
   estimateX402Cost(body: { url: string; method?: string }) {
     return this.post('/v1/x402/estimate', body);
   }
+
+  // ── Behavioral telemetry / reputation (FLO-579) ───────────────────
+  // Tool-call telemetry: name + timing + ok/error only (no args/results),
+  // fire-and-forget from the tool wrapper. Reputation is the cached score.
+  logToolCall(body: { tool: string; durationMs: number; ok: boolean; errorCode?: string }) {
+    return this.post('/v1/events/tool-call', body);
+  }
+  getReputation() { return this.get('/v1/agents/reputation'); }
 }
 
 export class ApiError extends Error {
