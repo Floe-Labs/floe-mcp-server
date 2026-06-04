@@ -28,7 +28,7 @@ Give Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client a
 | 02 | **Fiat on/off-ramp** | Dashboard-driven | On-ramp links generated server-side; no MCP tool required today. Tool surface `Roadmap`. |
 | 03 | **Secured working capital** | `GA` | `get_markets`, `get_market_details`, `get_open_lend_intents`, `get_open_borrow_intents`, `get_intent_details`, `get_loan`, `get_user_loans`, `get_loan_health`, `get_liquidation_quote`, `create_lend_intent`, `create_borrow_intent`, `create_counter_intent`, `repay_loan`, `add_collateral`, `withdraw_collateral`, `liquidate_loan`, `revoke_intent`, `approve_token`, `get_accrued_interest`, `get_token_price`, `check_compatibility`, `calculate_risk`, `estimate_interest` |
 | 04 | **Unsecured working capital** | `Preview` | Coming soon — email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for the design partner program |
-| 05 | **x402 payment facilitator** | `GA` (preflight + gating) | `estimate_x402_cost`. Payment execution flows through `https://x402.floelabs.xyz/proxy/fetch`. |
+| 05 | **x402 payment facilitator** | `GA` (preflight + gating) | `estimate_x402_cost`. Payment execution flows through `https://credit-api.floelabs.xyz/v1/proxy/fetch`. |
 | 06 | **Credit & trust bureau** | Writer `GA` · Portable reader `Preview` | `list_credit_thresholds`, `register_credit_threshold`, `delete_credit_threshold`. Portable ERC-8004 reader tool is on the roadmap (see below). |
 
 Plus utility tools — `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` — shared across components.
