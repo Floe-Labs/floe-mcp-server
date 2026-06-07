@@ -264,4 +264,53 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
         .describe('HTTP method (default GET).'),
     },
     async ({ url, method }) => wrap(() => client.estimateX402Cost({ url, method }))());
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MERCHANT ALLOWLIST TOOLS (5) — opt-in, default-deny restriction on
+  // which destinations the agent may pay. An allowlist entry is an
+  // ordinary capped policy row (kind='api' host, kind='vendor' payee).
+  // Default mode 'off' = allow any vendor. All require an agent API key.
+  // ═══════════════════════════════════════════════════════════════════
+
+  server.tool('set_allowlist_mode',
+    'Set the agent\'s merchant-allowlist enforcement mode. "off" (default) allows any vendor. "host" blocks unlisted hosts before the first fetch; "vendor" blocks unlisted payees before signing; "both" enforces both. Allowlist entries themselves are managed with add_allowlist_entry.',
+    {
+      mode: z.enum(['off', 'host', 'vendor', 'both']).describe('Enforcement mode: off | host | vendor | both.'),
+    },
+    async ({ mode }) => wrap(() => client.setAllowlistMode({ mode }))());
+
+  server.tool('get_allowlist_mode',
+    'Return the agent\'s current merchant-allowlist enforcement mode (off | host | vendor | both).',
+    {},
+    wrap(() => client.getAllowlistMode()));
+
+  server.tool('add_allowlist_entry',
+    'Add a merchant-allowlist entry — an allowed-AND-capped policy row. Use kind="api" to allowlist a host (match_key = hostname) or kind="vendor" to allowlist a payee (match_key = recipient wallet). limit_raw caps spend against this entry (raw USDC, 6 decimals). Enforcement only kicks in once set_allowlist_mode is host/vendor/both.',
+    {
+      kind: z.enum(['api', 'vendor']).describe('"api" for a host entry (match_key = hostname) or "vendor" for a payee entry (match_key = recipient wallet address).'),
+      match_key: z.string().min(1).max(255).describe('Host (for kind="api") or payee wallet address (for kind="vendor").'),
+      limit_raw: z.string().regex(/^[1-9]\d*$/).describe('Spend cap in raw USDC units (6 decimals), positive. e.g. "1000000" = $1.'),
+      match_kind: z.enum(['host_exact', 'host_suffix', 'recipient']).optional().describe('Optional matcher: host_exact | host_suffix (api) or recipient (vendor). Defaults server-side.'),
+    },
+    async ({ kind, match_key, limit_raw, match_kind }) =>
+      wrap(() => client.addAllowlistEntry({ kind, matchKey: match_key, limitRaw: limit_raw, matchKind: match_kind }))());
+
+  server.tool('remove_allowlist_entry',
+    'Remove (revoke) a merchant-allowlist entry by policy id (from list_allowlist).',
+    {
+      policy_id: z.number().int().positive().describe('Policy id of the allowlist entry.'),
+    },
+    async ({ policy_id }) => wrap(async () => {
+      await client.removeAllowlistEntry(policy_id);
+      return { ok: true, policyId: policy_id };
+    })());
+
+  server.tool('list_allowlist',
+    'List the agent\'s merchant-allowlist entries (host "api" and payee "vendor" policies) with their spend caps. Does not include session/task spend policies.',
+    {},
+    wrap(async () => {
+      const res = await client.listAllowlist() as { policies?: Array<{ kind: string }> };
+      const policies = (res?.policies ?? []).filter((p) => p.kind === 'api' || p.kind === 'vendor');
+      return { policies };
+    }));
 }

@@ -130,6 +130,29 @@ export class FloeApiClient {
   estimateX402Cost(body: { url: string; method?: string }) {
     return this.post('/v1/x402/estimate', body);
   }
+
+  // ── Merchant Allowlist ────────────────────────────────────────────
+  // Opt-in, default-deny restriction on which destinations an agent may
+  // pay. An allowlist entry is an ordinary capped policy row (kind='api'
+  // host, kind='vendor' payee) that doubles as "allowed AND capped". The
+  // mode flag toggles which proxy gates enforce them; 'off' (default) =
+  // allow any vendor. All require an agent API key (`floe_*`).
+  getAllowlistMode() { return this.get('/v1/agents/allowlist-mode'); }
+  setAllowlistMode(body: { mode: 'off' | 'host' | 'vendor' | 'both' }) {
+    return this.request('PUT', '/v1/agents/allowlist-mode', body);
+  }
+  addAllowlistEntry(body: {
+    kind: 'api' | 'vendor';
+    matchKey: string;
+    limitRaw: string;
+    matchKind?: 'host_exact' | 'host_suffix' | 'recipient';
+  }) {
+    return this.post('/v1/agents/policies', body);
+  }
+  removeAllowlistEntry(policyId: number) {
+    return this.request('DELETE', `/v1/agents/policies/${policyId}`);
+  }
+  listAllowlist() { return this.get('/v1/agents/policies'); }
 }
 
 export class ApiError extends Error {

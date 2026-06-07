@@ -12,7 +12,7 @@ Give Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client a
 2. **Floe issues an x402 credit line to your agent's wallet.** Set spending controls — per-call cap, daily limit, allowed destinations.
 3. **Your MCP client pays vendors per-call; you get real-time visibility.** Every call is a typed receipt: target URL, amount, status, time. Reconcile, alert, or revoke from the dashboard.
 
-36 tools, transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
+41 tools, transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
 
 > **$2 free credit (~200 API calls).** Your agent can start paying for APIs today — no card required. [Get started →](https://dev-dashboard.floelabs.xyz)
 
@@ -206,7 +206,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (36)
+## Tools (41)
 
 Below the tools are listed by request type. Mapping to the six product components is in the table above.
 
@@ -272,6 +272,18 @@ Lets an agent answer "do I have credit?", "is this call worth it?", and "where a
 | `register_credit_threshold` | Register a webhook trigger at a utilization threshold (cap: 20 per agent) |
 | `delete_credit_threshold` | Remove a registered threshold |
 | `estimate_x402_cost` | Preflight an x402 URL — returns cost + reflection against your credit, no payment |
+
+### Merchant-allowlist tools
+
+Opt-in, default-deny restriction on **which destinations** the agent may pay. An allowlist entry is an ordinary capped policy row that doubles as "allowed AND capped". Default mode `off` = allow any vendor (zero onboarding friction). All require an agent API key (`floe_*`).
+
+| Tool | Description |
+|------|-------------|
+| `set_allowlist_mode` | Set enforcement: `off` \| `host` (block unlisted hosts pre-fetch) \| `vendor` (block unlisted payees pre-sign) \| `both` |
+| `get_allowlist_mode` | Read the agent's current enforcement mode |
+| `add_allowlist_entry` | Add an allowed-AND-capped entry — `kind=api` (host) or `kind=vendor` (payee), with a `limit_raw` spend cap |
+| `remove_allowlist_entry` | Revoke an allowlist entry by policy id (from `list_allowlist`) |
+| `list_allowlist` | List host (`api`) and payee (`vendor`) allowlist entries with their caps |
 
 ### Roadmap tools (not yet shipped)
 
