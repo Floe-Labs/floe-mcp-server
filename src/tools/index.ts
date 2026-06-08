@@ -292,8 +292,26 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
       limit_raw: z.string().regex(/^[1-9]\d*$/).describe('Spend cap in raw USDC units (6 decimals), positive. e.g. "1000000" = $1.'),
       match_kind: z.enum(['host_exact', 'host_suffix', 'recipient']).optional().describe('Optional matcher: host_exact | host_suffix (api) or recipient (vendor). Defaults server-side.'),
     },
-    async ({ kind, match_key, limit_raw, match_kind }) =>
-      wrap(() => client.addAllowlistEntry({ kind, matchKey: match_key, limitRaw: limit_raw, matchKind: match_kind }))());
+    async ({ kind, match_key, limit_raw, match_kind }) => {
+      // Kind-aware cross-field validation: the flat enums above allow
+      // incoherent combos (e.g. a vendor entry whose match_key is a
+      // hostname, or an api entry asking for the 'recipient' matcher).
+      // Reject those locally before the round-trip.
+      if (kind === 'vendor') {
+        if (!addr.safeParse(match_key).success) {
+          return errorResult('INVALID_ARGUMENT', { message: 'kind="vendor" requires match_key to be a payee wallet address (0x + 40 hex).' });
+        }
+        if (match_kind !== undefined && match_kind !== 'recipient') {
+          return errorResult('INVALID_ARGUMENT', { message: 'kind="vendor" only supports match_kind="recipient".' });
+        }
+      } else {
+        // kind === 'api' (host entry)
+        if (match_kind !== undefined && match_kind !== 'host_exact' && match_kind !== 'host_suffix') {
+          return errorResult('INVALID_ARGUMENT', { message: 'kind="api" only supports match_kind="host_exact" or "host_suffix".' });
+        }
+      }
+      return wrap(() => client.addAllowlistEntry({ kind, matchKey: match_key, limitRaw: limit_raw, matchKind: match_kind }))();
+    });
 
   server.tool('remove_allowlist_entry',
     'Remove (revoke) a merchant-allowlist entry by policy id (from list_allowlist).',
@@ -302,15 +320,11 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     },
     async ({ policy_id }) => wrap(async () => {
       await client.removeAllowlistEntry(policy_id);
-      return { ok: true, policyId: policy_id };
+      return { ok: true, policy_id };
     })());
 
   server.tool('list_allowlist',
     'List the agent\'s merchant-allowlist entries (host "api" and payee "vendor" policies) with their spend caps. Does not include session/task spend policies.',
     {},
-    wrap(async () => {
-      const res = await client.listAllowlist() as { policies?: Array<{ kind: string }> };
-      const policies = (res?.policies ?? []).filter((p) => p.kind === 'api' || p.kind === 'vendor');
-      return { policies };
-    }));
+    wrap(() => client.listAllowlist()));
 }

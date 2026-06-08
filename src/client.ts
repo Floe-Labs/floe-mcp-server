@@ -152,7 +152,14 @@ export class FloeApiClient {
   removeAllowlistEntry(policyId: number) {
     return this.request('DELETE', `/v1/agents/policies/${policyId}`);
   }
-  listAllowlist() { return this.get('/v1/agents/policies'); }
+  // GET /v1/agents/policies returns ALL policies (incl. session/task spend
+  // rows). Filter to allowlist kinds so the method name is honest and the
+  // caller doesn't have to re-filter.
+  async listAllowlist() {
+    const res = await this.get<{ policies?: Array<{ kind: string }> }>('/v1/agents/policies');
+    const policies = (res?.policies ?? []).filter((p) => p.kind === 'api' || p.kind === 'vendor');
+    return { ...res, policies };
+  }
 }
 
 export class ApiError extends Error {
