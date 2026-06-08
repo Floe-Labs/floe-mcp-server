@@ -293,7 +293,9 @@ The MCP tools above are the *actions*; the skill is the *playbook*. It reads bud
 
 **Use it:**
 
-- **Claude Code** — copy the folder into your project's or personal skills directory: `cp -r skills/floe-budget ~/.claude/skills/` (or `.claude/skills/` in a repo). Claude discovers it automatically from the `SKILL.md` frontmatter.
+- **Claude Code** — copy the folder into your personal (or a repo's `.claude/`) skills directory; Claude discovers it automatically from the `SKILL.md` frontmatter.
+  - From a cloned repo: `cp -r skills/floe-budget ~/.claude/skills/`
+  - From an npm install: `cp -r node_modules/@floelabs/mcp-server/skills/floe-budget ~/.claude/skills/`
 - **claude.ai / Agent SDK** — upload or register the `floe-budget` skill folder per the [Agent Skills docs](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview).
 - **Any MCP client** — point the model at [`skills/floe-budget/SKILL.md`](skills/floe-budget/SKILL.md) as system/context guidance alongside the Floe MCP connection.
 

@@ -42,7 +42,7 @@ Use it whenever you are about to spend, or are in a loop that spends:
 
 - Before any paid call (anything routed through the Floe x402 proxy).
 - Inside any multi-step or iterative task that calls paid APIs repeatedly.
-- Whenever a tool response carries an `X-Floe-Budget-Advisory` header.
+- Whenever a paid response from the Floe x402 proxy carries an `X-Floe-Budget-Advisory` header.
 
 ## How to read budget status
 
