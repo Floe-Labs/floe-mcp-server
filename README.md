@@ -4,34 +4,61 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-**Credit and payments for AI agent developers — over MCP. No crypto required.**
+**The spend layer for AI agents, over MCP.** Give Claude Desktop, Claude Code,
+Cursor, CrewAI, or any MCP client a single surface to pay 2,000+ vendor API services —
+with budgets the agent can reason about. Walletless. No crypto required.
 
-Give Claude Desktop, Claude Code, Cursor, CrewAI, or any MCP-compatible client an x402 payment surface and a Floe credit line.
-
-1. **Sign up with email + a funding source.** Card, Apple Pay, Google Pay, or bank transfer. Floe provisions your wallets in the background — no MetaMask, no seed phrase, no gas token.
-2. **Floe issues an x402 credit line to your agent's wallet.** Set spending controls — per-call cap, daily limit, allowed destinations.
-3. **Your MCP client pays vendors per-call; you get real-time visibility.** Every call is a typed receipt: target URL, amount, status, time. Reconcile, alert, or revoke from the dashboard.
+[Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏](https://x.com/FloeLabs)
 
 41 tools, transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env).
 
-> **$2 free credit (~200 API calls).** Your agent can start paying for APIs today — no card required. [Get started →](https://dev-dashboard.floelabs.xyz)
-
-> **Proof points:** 3,000+ secured working capital lines issued · zero defaults · 13,000+ x402 APIs reachable via the Floe proxy.
-
 ---
 
-## The Floe Stack (what this MCP server exposes)
+> **Start free.** $2 in API credit on signup — no card, no wallet.
+> [Get an agent key →](https://dev-dashboard.floelabs.xyz)
 
-| # | Component | Status | Tools |
-|---|---|---|---|
-| 01 | **Agent Wallet** | `GA` | `get_wallet_balance`, `get_credit_remaining`, `get_loan_state` |
-| 02 | **Fiat on/off-ramp** | Dashboard-driven | On-ramp links generated server-side; no MCP tool required today. Tool surface `Roadmap`. |
-| 03 | **Secured working capital** | `GA` | `get_markets`, `get_market_details`, `get_open_lend_intents`, `get_open_borrow_intents`, `get_intent_details`, `get_loan`, `get_user_loans`, `get_loan_health`, `get_liquidation_quote`, `create_lend_intent`, `create_borrow_intent`, `create_counter_intent`, `repay_loan`, `add_collateral`, `withdraw_collateral`, `liquidate_loan`, `revoke_intent`, `approve_token`, `get_accrued_interest`, `get_token_price`, `check_compatibility`, `calculate_risk`, `estimate_interest` |
-| 04 | **Unsecured working capital** | `Preview` | Coming soon — email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for the design partner program |
-| 05 | **x402 payment facilitator** | `GA` (preflight + gating) | `estimate_x402_cost`. Payment execution flows through `https://credit-api.floelabs.xyz/v1/proxy/fetch`. |
-| 06 | **Credit & trust bureau** | Writer `GA` · Portable reader `Preview` | `list_credit_thresholds`, `register_credit_threshold`, `delete_credit_threshold`. Portable ERC-8004 reader tool is on the roadmap (see below). |
+## What makes this different
 
-Plus utility tools — `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` — shared across components.
+Most payment tools let an agent *spend*. Floe lets an agent **reason about spend
+before it commits** — and stops it before it overruns.
+
+- **Agent-awareness tools** — `get_credit_remaining`, `estimate_x402_cost`,
+  `get_loan_state`: your agent asks "do I have budget? is this call worth it?"
+  *before* paying, not after.
+- **Context-aware budgets** — set a session spend cap; the agent tapers as it
+  nears the limit and replans to finish on budget.
+- **The `floe-budget` Claude Skill** (ships in this repo) — the playbook that
+  turns those tools into deliberate spending behavior. [Jump to it ↓](#budget-skill)
+- **Server-side enforcement** — the soft signal is the skill; the hard ceiling
+  is the on-chain spend cap + merchant allowlist. The agent cannot overspend
+  regardless of what it decides.
+
+## Quick start (remote, recommended)
+
+```json
+{ "mcpServers": { "floe": {
+  "url": "https://mcp.floelabs.xyz/mcp",
+  "headers": { "Authorization": "Bearer floe_YOUR_AGENT_KEY" }
+} } }
+```
+
+Get your agent key: [dashboard](https://dev-dashboard.floelabs.xyz) → Create agent → copy the `floe_<hex>` key
+(shown once). Or from the CLI: `npx floe-agent register --name my-agent`.
+
+→ [Local stdio, global install, and key taxonomy below](#install-options)
+
+## Tools at a glance
+
+| Group | Tools | For |
+|---|---|---|
+| **Agent awareness** ⭐ | `get_credit_remaining`, `estimate_x402_cost`, `get_loan_state`, `get_spend_limit`, `set_spend_limit`, `clear_spend_limit` | every agent — reason about cost before paying |
+| **Spend governance** | `register_credit_threshold`, `list_credit_thresholds`, `delete_credit_threshold` (webhooks) | govern + alert on utilization |
+| **Merchant allowlist** | `set_allowlist_mode`, `get_allowlist_mode`, `add_allowlist_entry`, `remove_allowlist_entry`, `list_allowlist` | default-deny on which destinations the agent may pay |
+| Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
+| Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
+| Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
+
+Full per-tool reference is in [Tools (41)](#tools-41) below.
 
 ---
 
@@ -49,27 +76,13 @@ Plus utility tools — `simulate_transaction`, `broadcast_transaction`, `get_tra
 
 ---
 
-## Quick Start
+<a id="install-options"></a>
 
-### Option 1: Remote (recommended)
+## Install options
 
-Point your MCP client directly at the hosted endpoint — no installation needed.
+Option 1 (remote) is in [Quick start](#quick-start-remote-recommended) above. For local runs:
 
-**Claude Desktop / Claude Code:**
-```json
-{
-  "mcpServers": {
-    "floe": {
-      "url": "https://mcp.floelabs.xyz/mcp",
-      "headers": {
-        "Authorization": "Bearer floe_YOUR_AGENT_KEY"
-      }
-    }
-  }
-}
-```
-
-### Option 2: Local via npx
+### Local via npx
 
 Run the server locally. It proxies all requests to the Floe API.
 
@@ -107,7 +120,7 @@ FLOE_API_KEY=floe_YOUR_AGENT_KEY npx @floelabs/mcp-server
 }
 ```
 
-### Option 3: Install globally
+### Install globally
 
 ```bash
 npm install -g @floelabs/mcp-server
@@ -195,20 +208,9 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## What can agents do?
-
-| Floe component | Capability |
-|---|---|
-| Agent Wallet | Read balances, credit headroom, loan-lifecycle state |
-| Secured working capital | Browse markets, post intents, match offers, repay, manage collateral, liquidate |
-| x402 payment facilitator | Preflight x402 costs against current credit and spend limits |
-| Credit & trust bureau | Register webhook thresholds on credit utilization; list / delete |
-
----
-
 ## Tools (41)
 
-Below the tools are listed by request type. Mapping to the six product components is in the table above.
+Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 
 ### Read tools
 
@@ -257,7 +259,7 @@ Below the tools are listed by request type. Mapping to the six product component
 | `broadcast_transaction` | Submit a signed transaction |
 | `get_transaction_status` | Check transaction receipt |
 
-### Agent-awareness tools
+### Agent-awareness tools ⭐
 
 Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`). The calling identity is taken from the Bearer header in HTTP mode, or from `FLOE_API_KEY` in stdio mode (and as a fallback in HTTP mode when `ALLOW_SHARED_KEY_FALLBACK=true`).
 
@@ -294,6 +296,8 @@ Opt-in, default-deny restriction on **which destinations** the agent may pay. An
 Email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for early access to any of these.
 
 ---
+
+<a id="budget-skill"></a>
 
 ## Budget-awareness skill (`floe-budget`)
 
