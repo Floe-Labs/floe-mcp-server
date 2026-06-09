@@ -283,6 +283,26 @@ Email [hello@floelabs.xyz](mailto:hello@floelabs.xyz) for early access to any of
 
 ---
 
+## Budget-awareness skill (`floe-budget`)
+
+A portable [Claude Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) ships with this repo at [`skills/floe-budget/`](skills/floe-budget/). It makes any Claude-native agent (Claude Code, the Agent SDK, claude.ai, or any MCP client) spend its Floe credit deliberately: read budget status before paying, **taper** as it nears the tightest cap, **replan** to finish the task on budget, and **stop** before the ceiling.
+
+The MCP tools above are the *actions*; the skill is the *playbook*. It reads budget status from the existing `get_credit_remaining`, `get_spend_limit`, `estimate_x402_cost`, and `get_loan_state` tools, plus the `X-Floe-Budget-Advisory` header the Floe x402 proxy stamps on paid responses. No new tool or backend is required.
+
+> **Soft signal, not the guardrail.** The skill helps a cooperative agent spend wisely. The real ceiling is enforced **server-side** — the on-chain credit line, the session spend cap, and (if configured) the merchant allowlist refuse calls past the limit regardless of what the agent decides.
+
+**Use it:**
+
+- **Claude Code** — copy the folder into your personal (or a repo's `.claude/`) skills directory; Claude discovers it automatically from the `SKILL.md` frontmatter.
+  - From a cloned repo: `cp -r skills/floe-budget ~/.claude/skills/`
+  - From an npm install: `cp -r node_modules/@floelabs/mcp-server/skills/floe-budget ~/.claude/skills/`
+- **claude.ai / Agent SDK** — upload or register the `floe-budget` skill folder per the [Agent Skills docs](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview).
+- **Any MCP client** — point the model at [`skills/floe-budget/SKILL.md`](skills/floe-budget/SKILL.md) as system/context guidance alongside the Floe MCP connection.
+
+See [`skills/floe-budget/SKILL.md`](skills/floe-budget/SKILL.md) for the playbook and [`skills/floe-budget/reference.md`](skills/floe-budget/reference.md) for the `X-Floe-Budget-Advisory` field reference.
+
+---
+
 ## Transaction Flow
 
 All write tools return **unsigned transactions** — the server never holds private keys.
