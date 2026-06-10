@@ -12,7 +12,58 @@ function wrap(fn: () => Promise<any>) {
   };
 }
 
+// FLO-579: behavioral capture. Wrap server.tool ONCE so every tool registered
+// below is timed and its outcome (name + durationMs + ok/error — never
+// arguments or results) is fire-and-forgotten to the Floe API. Tool latency
+// and output are unchanged: logging is void-fired in `finally`. Capturing only
+// name+timing+ok structurally guarantees no chain-of-thought leaves the agent.
+function instrumentToolCalls(server: McpServer, client: FloeApiClient): void {
+  const original = (server.tool as (...args: any[]) => any).bind(server);
+  (server as unknown as { tool: (...args: any[]) => any }).tool = (...args: any[]) => {
+    const name = typeof args[0] === 'string' ? args[0] : 'unknown';
+    const handler = args[args.length - 1];
+    if (typeof handler === 'function') {
+      args[args.length - 1] = async (...handlerArgs: any[]) => {
+        const t0 = Date.now();
+        let ok = true;
+        let errorCode: string | undefined;
+        try {
+          const result = await handler(...handlerArgs);
+          if (result && typeof result === 'object' && (result as { isError?: boolean }).isError) {
+            ok = false;
+            errorCode = extractErrorCode(result);
+          }
+          return result;
+        } catch (e: any) {
+          ok = false;
+          errorCode = e?.code ?? 'ERROR';
+          throw e;
+        } finally {
+          void client
+            .logToolCall({ tool: name, durationMs: Date.now() - t0, ok, errorCode })
+            .catch(() => {});
+        }
+      };
+    }
+    return original(...args);
+  };
+}
+
+function extractErrorCode(result: unknown): string | undefined {
+  try {
+    const text = (result as { content?: Array<{ text?: string }> }).content?.[0]?.text;
+    if (!text) return undefined;
+    const parsed = JSON.parse(text) as { error?: string };
+    return typeof parsed.error === 'string' ? parsed.error : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function registerAllTools(server: McpServer, client: FloeApiClient) {
+  // Instrument tool-call telemetry before any tool is registered.
+  instrumentToolCalls(server, client);
+
   // ═══════════════════════════════════════════════════════════════════
   // READ TOOLS (12)
   // ═══════════════════════════════════════════════════════════════════
@@ -327,4 +378,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     'List the agent\'s merchant-allowlist entries (host "api" and payee "vendor" policies) with their spend caps. Does not include session/task spend policies.',
     {},
     wrap(() => client.listAllowlist()));
+
+  server.tool('get_agent_reputation',
+    'Return the calling agent\'s unified credit reputation: a 0-100 score, an A-E band, confidence (0-1 share of the model backed by real signals), the resulting collateral-requirement multiplier (collateralMultiplierBps; 10000 = 1.0x baseline, lower score = higher multiplier), modelVersion, and computedAt. Behavioral discipline (declined spends, policy breaches, tool-call reliability, verified-settlement diversity) feeds the score alongside repayment and payment history. Use to understand how much collateral the next borrow will require. Returns 404 until the first score is computed.',
+    {},
+    wrap(() => client.getReputation()));
 }
