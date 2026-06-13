@@ -160,6 +160,15 @@ export class FloeApiClient {
     const policies = (res?.policies ?? []).filter((p) => p.kind === 'api' || p.kind === 'vendor');
     return { ...res, policies };
   }
+
+  // ── Behavioral telemetry / reputation (FLO-579) ───────────────────
+  // Tool-call telemetry: name + timing + ok/error only (no args/results),
+  // fire-and-forget from the tool wrapper. Reputation is the unified credit
+  // score (TTL-cached server-side) + collateral multiplier.
+  logToolCall(body: { tool: string; durationMs: number; ok: boolean; errorCode?: string }) {
+    return this.post('/v1/events/tool-call', body);
+  }
+  getReputation() { return this.get('/v1/agents/reputation'); }
 }
 
 export class ApiError extends Error {
