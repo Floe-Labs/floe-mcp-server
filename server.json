@@ -1,6 +1,6 @@
 {
   "name": "io.github.floe-labs/payments",
-  "description": "Credit and payments for AI agent developers. Working capital, x402 API payments, spend controls, and credit history — 36 tools.",
+  "description": "Spend management and pay-as-you-go payments for AI agents over MCP — pre-transaction spend controls, multi-agent keys, and one key to pay 2,000+ vendor API services.",
   "version": "0.2.2",
   "repository": {
     "url": "https://github.com/Floe-Labs/floe-mcp-server",
