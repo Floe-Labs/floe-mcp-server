@@ -334,7 +334,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
       output_tokens: z.number().int().nonnegative().optional().describe('Completion tokens (text models).'),
       cached_input_tokens: z.number().int().nonnegative().optional().describe('Cached prompt tokens billed at the cached rate (text models).'),
       characters: z.number().int().nonnegative().optional().describe('Characters of input text (TTS models).'),
-      audio_seconds: z.number().int().nonnegative().optional().describe('Seconds of audio (STT models).'),
+      audio_seconds: z.number().nonnegative().optional().describe('Seconds of audio, fractional allowed (STT models).'),
       audio_input_tokens: z.number().int().nonnegative().optional().describe('Input audio tokens (realtime voice).'),
       audio_output_tokens: z.number().int().nonnegative().optional().describe('Output audio tokens (realtime voice).'),
     },
