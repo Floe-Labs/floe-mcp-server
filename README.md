@@ -408,7 +408,7 @@ async with MultiServerMCPClient({
 
 ### CrewAI
 
-CrewAI agents can consume the Floe MCP tools via `langchain-mcp-adapters`. A runnable crew is available in [floe-examples/crewai-demo](https://github.com/Floe-Labs/floe-examples).
+CrewAI agents can consume the Floe MCP tools via `langchain-mcp-adapters`. A runnable crew is available in [floe-cookbook/crewai-demo](https://github.com/Floe-Labs/floe-cookbook).
 
 ---
 
@@ -462,7 +462,7 @@ Key concepts:
 - [Documentation](https://floe-labs.gitbook.io/docs)
 - [TypeScript SDK (`floe-agent`)](https://github.com/Floe-Labs/agentkit-actions)
 - [Python SDK (`floe-agentkit-actions`)](https://github.com/Floe-Labs/agentkit-actions-py)
-- [End-to-end examples](https://github.com/Floe-Labs/floe-examples)
+- [End-to-end examples](https://github.com/Floe-Labs/floe-cookbook)
 
 ## License
 
