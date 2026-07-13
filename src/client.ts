@@ -161,6 +161,25 @@ export class FloeApiClient {
     return { ...res, policies };
   }
 
+  // ── Inference gateway (FLO-602) ───────────────────────────────────
+  // Keyless pay-as-you-go LLM/voice gateway. `listInferenceModels` is the
+  // OpenAI-compatible /v1/models catalog; `estimateInferenceCost` prices a
+  // usage vector (no balance/upstream call) so an agent can decide before
+  // spending.
+  listInferenceModels() { return this.get('/v1/models'); }
+  estimateInferenceCost(body: {
+    model: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    cached_input_tokens?: number;
+    characters?: number;
+    audio_seconds?: number;
+    audio_input_tokens?: number;
+    audio_output_tokens?: number;
+  }) {
+    return this.post('/v1/estimate', body);
+  }
+
   // ── Behavioral telemetry / reputation (FLO-579) ───────────────────
   // Tool-call telemetry: name + timing + ok/error only (no args/results),
   // fire-and-forget from the tool wrapper. Reputation is the unified credit

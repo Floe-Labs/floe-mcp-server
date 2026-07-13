@@ -317,6 +317,30 @@ export function registerAllTools(server: McpServer, client: FloeApiClient) {
     async ({ url, method }) => wrap(() => client.estimateX402Cost({ url, method }))());
 
   // ═══════════════════════════════════════════════════════════════════
+  // INFERENCE GATEWAY TOOLS (2) — FLO-602 keyless pay-as-you-go LLM/voice
+  // gateway. Browse the model catalog and price a call before spending.
+  // ═══════════════════════════════════════════════════════════════════
+
+  server.tool('list_models',
+    'List the models available on Floe Inference — the keyless pay-as-you-go LLM/voice gateway. Returns OpenAI-compatible model objects (id like "openai/gpt-4o", modality: text | embedding | tts | stt | realtime, context_window). Use the id with the OpenAI-compatible /v1/chat/completions, /v1/embeddings, /v1/audio, or /v1/realtime endpoints, or price a call first with estimate_inference_cost.',
+    {},
+    wrap(() => client.listInferenceModels()));
+
+  server.tool('estimate_inference_cost',
+    'Estimate the USDC cost of a Floe Inference call for a given model and usage vector, WITHOUT making the call or touching balance. Returns the cheapest priceable source: { rail, provider, margin_bps, upstream_cost_usdc, cost_usdc, cost_raw }. Provide only the units the model bills: text models use input_tokens/output_tokens (+cached_input_tokens); TTS uses characters; STT uses audio_seconds; realtime voice uses audio_input_tokens/audio_output_tokens. Use BEFORE inference to decide gating.',
+    {
+      model: z.string().min(1).max(128).describe('Model id from list_models, e.g. "openai/gpt-4o" or "elevenlabs/eleven-turbo-v2.5".'),
+      input_tokens: z.number().int().nonnegative().optional().describe('Prompt tokens (text models).'),
+      output_tokens: z.number().int().nonnegative().optional().describe('Completion tokens (text models).'),
+      cached_input_tokens: z.number().int().nonnegative().optional().describe('Cached prompt tokens billed at the cached rate (text models).'),
+      characters: z.number().int().nonnegative().optional().describe('Characters of input text (TTS models).'),
+      audio_seconds: z.number().nonnegative().optional().describe('Seconds of audio, fractional allowed (STT models).'),
+      audio_input_tokens: z.number().int().nonnegative().optional().describe('Input audio tokens (realtime voice).'),
+      audio_output_tokens: z.number().int().nonnegative().optional().describe('Output audio tokens (realtime voice).'),
+    },
+    async (args) => wrap(() => client.estimateInferenceCost(args))());
+
+  // ═══════════════════════════════════════════════════════════════════
   // MERCHANT ALLOWLIST TOOLS (5) — opt-in, default-deny restriction on
   // which destinations the agent may pay. An allowlist entry is an
   // ordinary capped policy row (kind='api' host, kind='vendor' payee).
