@@ -60,6 +60,24 @@ Get your agent key: [dashboard](https://dev-dashboard.floelabs.xyz) → Create a
 
 Full per-tool reference is in [Tools (41)](#tools-41) below.
 
+### Example: pay a vendor API on budget
+
+The spend layer runs server-side — no local signing, no wallet. The agent checks
+its budget, previews the cost, then pays. Floe auto-borrows and settles under the hood.
+
+```
+Agent: "Transcribe this call, but don't blow the session budget."
+
+1. set_spend_limit(5_000_000)          → cap this session at 5 USDC
+2. get_credit_remaining()              → { available, utilization_bps } — do I have room?
+3. estimate_x402_cost(url)             → preflight the vendor call; cost + reflection, no charge
+4. (agent decides it's worth it)       → the x402 proxy pays the vendor, auto-borrowing if needed
+5. get_credit_remaining()              → confirm headroom; taper or stop as the cap nears
+```
+
+Restrict *where* it can pay with the merchant allowlist (`set_allowlist_mode`,
+`add_allowlist_entry`) — default-deny on hosts and payees, each with its own cap.
+
 ---
 
 ## Tested clients
@@ -210,7 +228,41 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ## Tools (41)
 
-Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
+The spend-layer tools (agent-awareness + merchant-allowlist) are listed first — they are what most agents use. The on-chain lending tools follow as an advanced section. The summary is in [Tools at a glance](#tools-at-a-glance) above.
+
+### Agent-awareness tools ⭐
+
+Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`). The calling identity is taken from the Bearer header in HTTP mode, or from `FLOE_API_KEY` in stdio mode (and as a fallback in HTTP mode when `ALLOW_SHARED_KEY_FALLBACK=true`).
+
+| Tool | Description |
+|------|-------------|
+| `get_credit_remaining` | Current available credit, headroom to auto-borrow, utilization in bps |
+| `get_loan_state` | Coarse state: `idle` \| `borrowing` \| `at_limit` \| `repaying` |
+| `get_spend_limit` | Currently active session spend cap, if any |
+| `set_spend_limit` | Set a session-level USDC ceiling (resets the session window) |
+| `clear_spend_limit` | Remove the session spend cap |
+| `list_credit_thresholds` | List registered credit-utilization thresholds |
+| `register_credit_threshold` | Register a webhook trigger at a utilization threshold (cap: 20 per agent) |
+| `delete_credit_threshold` | Remove a registered threshold |
+| `estimate_x402_cost` | Preflight an x402 URL — returns cost + reflection against your credit, no payment |
+
+### Merchant-allowlist tools
+
+Opt-in, default-deny restriction on **which destinations** the agent may pay. An allowlist entry is an ordinary capped policy row that doubles as "allowed AND capped". Default mode `off` = allow any vendor (zero onboarding friction). All require an agent API key (`floe_*`).
+
+| Tool | Description |
+|------|-------------|
+| `set_allowlist_mode` | Set enforcement: `off` \| `host` (block unlisted hosts pre-fetch) \| `vendor` (block unlisted payees pre-sign) \| `both` |
+| `get_allowlist_mode` | Read the agent's current enforcement mode |
+| `add_allowlist_entry` | Add an allowed-AND-capped entry — `kind=api` (host) or `kind=vendor` (payee), with a `limit_raw` spend cap |
+| `remove_allowlist_entry` | Revoke an allowlist entry by policy id (from `list_allowlist`) |
+| `list_allowlist` | List host (`api`) and payee (`vendor`) allowlist entries with their caps |
+
+---
+
+## On-chain lending tools (advanced)
+
+These back the working-capital layer — deposit USDC, borrow a credit line, manage collateral and loan health. Most agents never call them directly; the spend-layer tools above auto-borrow under the hood. They're here for crypto-native lending against deposits.
 
 ### Read tools
 
@@ -258,34 +310,6 @@ Below the tools are listed by request type. The summary is in [Tools at a glance
 | `simulate_transaction` | Dry-run a transaction (eth_call) |
 | `broadcast_transaction` | Submit a signed transaction |
 | `get_transaction_status` | Check transaction receipt |
-
-### Agent-awareness tools ⭐
-
-Lets an agent answer "do I have credit?", "is this call worth it?", and "where am I in the loan lifecycle?" before committing capital. All require an agent API key (`floe_*`). The calling identity is taken from the Bearer header in HTTP mode, or from `FLOE_API_KEY` in stdio mode (and as a fallback in HTTP mode when `ALLOW_SHARED_KEY_FALLBACK=true`).
-
-| Tool | Description |
-|------|-------------|
-| `get_credit_remaining` | Current available credit, headroom to auto-borrow, utilization in bps |
-| `get_loan_state` | Coarse state: `idle` \| `borrowing` \| `at_limit` \| `repaying` |
-| `get_spend_limit` | Currently active session spend cap, if any |
-| `set_spend_limit` | Set a session-level USDC ceiling (resets the session window) |
-| `clear_spend_limit` | Remove the session spend cap |
-| `list_credit_thresholds` | List registered credit-utilization thresholds |
-| `register_credit_threshold` | Register a webhook trigger at a utilization threshold (cap: 20 per agent) |
-| `delete_credit_threshold` | Remove a registered threshold |
-| `estimate_x402_cost` | Preflight an x402 URL — returns cost + reflection against your credit, no payment |
-
-### Merchant-allowlist tools
-
-Opt-in, default-deny restriction on **which destinations** the agent may pay. An allowlist entry is an ordinary capped policy row that doubles as "allowed AND capped". Default mode `off` = allow any vendor (zero onboarding friction). All require an agent API key (`floe_*`).
-
-| Tool | Description |
-|------|-------------|
-| `set_allowlist_mode` | Set enforcement: `off` \| `host` (block unlisted hosts pre-fetch) \| `vendor` (block unlisted payees pre-sign) \| `both` |
-| `get_allowlist_mode` | Read the agent's current enforcement mode |
-| `add_allowlist_entry` | Add an allowed-AND-capped entry — `kind=api` (host) or `kind=vendor` (payee), with a `limit_raw` spend cap |
-| `remove_allowlist_entry` | Revoke an allowlist entry by policy id (from `list_allowlist`) |
-| `list_allowlist` | List host (`api`) and payee (`vendor`) allowlist entries with their caps |
 
 ### Roadmap tools (not yet shipped)
 
@@ -387,10 +411,9 @@ await client.connect(new StreamableHTTPClientTransport(
   { requestInit: { headers: { "Authorization": "Bearer floe_..." } } }
 ));
 
-const markets = await client.callTool("get_markets", {});
-const counter = await client.callTool("create_counter_intent", {
-  offer_hash: "0x...",
-  wallet_address: "0x...",
+const budget = await client.callTool("get_credit_remaining", {});
+const quote = await client.callTool("estimate_x402_cost", {
+  url: "https://api.vendor.example/v1/transcribe",
 });
 ```
 
