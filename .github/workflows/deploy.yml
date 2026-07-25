@@ -58,6 +58,28 @@ jobs:
             EXPECTED_VERSION=$(node -p "require('./package.json').version")
             echo "==> Expected version: ${EXPECTED_VERSION}"
 
+            # Transport guard. With no --stdio/--http flag the server picks its
+            # transport from what stdin is: a pipe or socket means "an MCP client
+            # spawned me" → stdio. systemd's default StandardInput=null is a
+            # character device, so the hosted unit serves HTTP as intended — but a
+            # unit using socket activation or an inherited fd would silently flip
+            # to stdio and take mcp.floelabs.xyz down. Catch that BEFORE restarting.
+            UNIT_EXEC=$(systemctl show floe-mcp.service -p ExecStart --value 2>/dev/null || true)
+            UNIT_STDIN=$(systemctl show floe-mcp.service -p StandardInput --value 2>/dev/null || true)
+            case "$UNIT_EXEC" in
+              *--http*|*--stdio*) ;;  # explicit flag wins; nothing to check
+              *)
+                case "$UNIT_STDIN" in
+                  socket|fd)
+                    echo "floe-mcp.service has StandardInput=${UNIT_STDIN} and no explicit transport flag."
+                    echo "The server would auto-select stdio and stop serving HTTP."
+                    echo "Fix: add --http to ExecStart in the unit, then re-run this deploy."
+                    exit 1
+                    ;;
+                esac
+                ;;
+            esac
+
             echo "==> Restarting service"
             sudo systemctl restart floe-mcp.service
             sleep 3

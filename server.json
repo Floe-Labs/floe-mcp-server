@@ -1,7 +1,7 @@
 {
   "name": "io.github.floe-labs/payments",
   "description": "Spend management and pay-as-you-go payments for AI agents over MCP — pre-transaction spend controls, multi-agent keys, and one key to pay 2,000+ vendor API services.",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "repository": {
     "url": "https://github.com/Floe-Labs/floe-mcp-server",
     "source": "github"
@@ -10,7 +10,7 @@
     {
       "registryType": "npm",
       "identifier": "@floelabs/mcp-server",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "transport": {
         "type": "stdio"
       }
@@ -18,7 +18,7 @@
     {
       "registryType": "url",
       "identifier": "https://mcp.floelabs.xyz/mcp",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "transport": {
         "type": "streamable-http"
       }

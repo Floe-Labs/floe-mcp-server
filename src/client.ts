@@ -1,3 +1,5 @@
+import { VERSION } from './version.js';
+
 /**
  * FloeApiClient — thin HTTP client for the Floe Credit API.
  * Replaces the entire ServiceContainer from the thick MCP server.
@@ -7,23 +9,58 @@ export class FloeApiClient {
 
   constructor(
     private baseUrl: string,
-    private apiKey: string,
+    private apiKey?: string,
     private timeoutMs: number = FloeApiClient.DEFAULT_TIMEOUT_MS,
   ) {}
 
-  private async request<T = any>(method: string, path: string, body?: unknown): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+  /** True when the client holds a credential (env key or per-request Bearer). */
+  get hasKey(): boolean {
+    return Boolean(this.apiKey);
+  }
+
+  /**
+   * Which kind of key the client holds, judged from the prefix alone:
+   * `floe_live_*` = developer key, any other `floe_*` = agent key. Used
+   * only to build wrong-key-type remediation hints on 401/403 — never for
+   * authorization decisions (the backend is authoritative).
+   */
+  get keyKind(): 'agent' | 'dev' | 'unknown' | 'none' {
+    if (!this.apiKey) return 'none';
+    if (this.apiKey.startsWith('floe_live_')) return 'dev';
+    if (this.apiKey.startsWith('floe_')) return 'agent';
+    return 'unknown';
+  }
+
+  private headers(extra?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': `floe-mcp/${VERSION}`,
+      ...extra,
+    };
+    // Keyless sessions send no Authorization header at all — the public
+    // endpoints (/v1/markets, /v1/proxy/check) accept unauthenticated
+    // requests, and everything else 401s server-side as expected.
+    if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`;
+    return headers;
+  }
+
+  // Low-level fetch shared by request() and proxyFetch(): owns the
+  // AbortController/timeout, maps aborts to a structured TIMEOUT error, and
+  // pre-reads the body text so callers only differ in how they interpret it.
+  private async rawFetch(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<{ res: Response; text: string }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await fetch(`${this.baseUrl}${path}`, {
         method,
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: this.headers(extraHeaders),
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
@@ -36,19 +73,29 @@ export class FloeApiClient {
       clearTimeout(timeout);
     }
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      let parsed: any;
-      try { parsed = JSON.parse(text); } catch { parsed = { message: text }; }
-      throw new ApiError(res.status, parsed?.error ?? `HTTP ${res.status}`, parsed?.message ?? text);
-    }
+    const text = await res.text().catch(() => '');
+    return { res, text };
+  }
+
+  private httpError(res: Response, text: string): ApiError {
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch { parsed = { message: text }; }
+    return new ApiError(res.status, parsed?.error ?? `HTTP ${res.status}`, parsed?.message ?? text);
+  }
+
+  private async request<T = any>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<T> {
+    const { res, text } = await this.rawFetch(method, path, body, extraHeaders);
+    if (!res.ok) throw this.httpError(res, text);
 
     // 204 No Content (and any other empty-body success) must not blow up
     // `JSON.parse('')`. Used by `clear_spend_limit` / `delete_credit_threshold`
     // and any future endpoint whose contract says "ack-only".
-    if (res.status === 204) return undefined as T;
-    const text = await res.text();
-    if (text.trim().length === 0) return undefined as T;
+    if (res.status === 204 || text.trim().length === 0) return undefined as T;
     return JSON.parse(text) as T;
   }
 
@@ -57,7 +104,6 @@ export class FloeApiClient {
 
   // ── Read ──────────────────────────────────────────────────────────
   getMarkets() { return this.get('/v1/markets'); }
-  getMarketRates() { return this.get('/v1/status/markets'); }
   getIntents(params: { type?: string; limit?: number; skip?: number }) {
     const qs = new URLSearchParams();
     if (params.type) qs.set('type', params.type);
@@ -188,6 +234,116 @@ export class FloeApiClient {
     return this.post('/v1/events/tool-call', body);
   }
   getReputation() { return this.get('/v1/agents/reputation'); }
+
+  // ── Developer lifecycle (WS2) ─────────────────────────────────────
+  // Everything under /v1/developer/* wants a developer key (`floe_live_*`).
+  // A bare dev key resolves to the `owner` role server-side, so key-only
+  // bootstrap works end-to-end; agent keys 403 on the role-gated routes.
+  createAgent(body: { name: string; borrowLimitRaw?: string; maxRateBps: number; expirySeconds: number }) {
+    return this.post('/v1/developer/agents', body);
+  }
+  listAgents() { return this.get('/v1/developer/agents'); }
+  getAgent(agentId: string) { return this.get(`/v1/developer/agents/${agentId}`); }
+  setAgentStatus(agentId: string, body: { status: 'active' | 'suspended' }) {
+    return this.request('PATCH', `/v1/developer/agents/${agentId}/status`, body);
+  }
+  closeAgent(agentId: string) { return this.post(`/v1/developer/agents/${agentId}/close`, {}); }
+  createAgentKey(agentId: string, body: { label?: string; budgetRaw?: string; windowSeconds?: number }) {
+    return this.post(`/v1/developer/agents/${agentId}/keys`, body);
+  }
+  rotateAgentKey(agentId: string, keyId: number, body?: { label?: string }) {
+    return this.post(`/v1/developer/agents/${agentId}/keys/${keyId}/rotate`, body);
+  }
+  revokeAgentKey(agentId: string, keyId: number) {
+    return this.request('DELETE', `/v1/developer/agents/${agentId}/keys/${keyId}`);
+  }
+  setAgentKeyBudget(agentId: string, keyId: number, body: { budgetRaw: string; windowSeconds?: number }) {
+    return this.request('PUT', `/v1/developer/agents/${agentId}/keys/${keyId}/budget`, body);
+  }
+  // New WS1 endpoint — machine-readable funding instructions. May 404
+  // until the API side deploys; the tool falls back to getAgent()'s
+  // privyWalletAddress (the deposit address) so the answer stays useful.
+  getAgentFunding(agentId: string) { return this.get(`/v1/developer/agents/${agentId}/funding`); }
+  getBalances() { return this.get('/v1/developer/balances'); }
+  getActivity(params?: {
+    agentId?: string;
+    type?: string;
+    limit?: number;
+    since?: string;
+    until?: string;
+    cursor?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.agentId) qs.set('agentId', params.agentId);
+    if (params?.type) qs.set('type', params.type);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.since) qs.set('since', params.since);
+    if (params?.until) qs.set('until', params.until);
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    const q = qs.toString();
+    return this.get(`/v1/developer/activity${q ? '?' + q : ''}`);
+  }
+  getUsageSummary(params?: { window?: string; agentId?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.window) qs.set('window', params.window);
+    if (params?.agentId) qs.set('agentId', params.agentId);
+    const q = qs.toString();
+    return this.get(`/v1/developer/analytics/summary${q ? '?' + q : ''}`);
+  }
+  createWebhook(body: {
+    url: string;
+    events: string[];
+    scope: string;
+    scopeValue?: string;
+    description?: string;
+  }) {
+    return this.post('/v1/developer/webhooks', body);
+  }
+  listWebhooks() { return this.get('/v1/developer/webhooks'); }
+  testWebhook(webhookId: number) { return this.post(`/v1/developer/webhooks/${webhookId}/test`, {}); }
+  openCreditLine(agentId: string, body: { depositRaw: string; maxLtvBps?: number; maxRateBps?: number }) {
+    return this.post(`/v1/developer/agents/${agentId}/open-credit-line`, body);
+  }
+  getCreditLineBounds(agentId: string) {
+    return this.get(`/v1/developer/agents/${agentId}/credit-line-bounds`);
+  }
+
+  // ── x402 execution ────────────────────────────────────────────────
+  // `checkX402Url` is the public (unauthenticated, IP-rate-limited) probe;
+  // `forecastX402` batches estimates + policy preflight; `proxyFetch` is
+  // the actual paid call — agent key only, Idempotency-Key supported so
+  // retries never double-pay (FLO-548).
+  checkX402Url(url: string) {
+    return this.get(`/v1/proxy/check?${new URLSearchParams({ url })}`);
+  }
+  forecastX402(body: { items: Array<{ url: string; method?: string; count?: number; taskId?: string }> }) {
+    return this.post('/v1/x402/forecast', body);
+  }
+  async proxyFetch(
+    body: { url: string; method?: string; headers?: Record<string, string>; body?: string },
+    idempotencyKey?: string,
+  ) {
+    const { res, text } = await this.rawFetch(
+      'POST',
+      '/v1/proxy/fetch',
+      body,
+      idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    );
+    if (!res.ok) throw this.httpError(res, text);
+
+    // The proxy passes the vendor response through verbatim — it is NOT
+    // guaranteed to be JSON. Surface status + the X-Floe-* metering headers
+    // (budget advisory, idempotent-replay marker, cost) alongside the body
+    // so the agent sees the settled receipt and the advisory in one result.
+    const floeHeaders: Record<string, string> = {};
+    res.headers.forEach((value, key) => {
+      const k = key.toLowerCase();
+      if (k.startsWith('x-floe-') || k === 'content-type') floeHeaders[k] = value;
+    });
+    let parsedBody: unknown = text;
+    try { parsedBody = JSON.parse(text); } catch { /* keep raw text */ }
+    return { status: res.status, headers: floeHeaders, body: parsedBody };
+  }
 }
 
 export class ApiError extends Error {

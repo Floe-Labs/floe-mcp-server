@@ -1,0 +1,11 @@
+{
+  // The build config (tsconfig.json, which tsup reads) is scoped to src/ via
+  // rootDir, so `tsc --noEmit` alone never sees test/. Vitest strips types
+  // rather than checking them, so without this the suite that gates every
+  // release could contain type errors nobody notices.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

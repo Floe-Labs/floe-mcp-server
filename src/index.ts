@@ -1,3 +1,4 @@
+import { fstatSync } from 'node:fs';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
@@ -6,13 +7,43 @@ import { FloeApiClient } from './client.js';
 import { createMcpServer } from './server.js';
 import { VERSION } from './version.js';
 
+// An MCP client spawning us wires stdin to a pipe (or socketpair) it will
+// speak the protocol on. A plain non-TTY check would misfire under systemd
+// — the hosted deploy's unit runs `node dist/index.js` with no flag, and
+// journald makes stdout a pipe while StandardInput defaults to /dev/null
+// (a character device) — so probe what stdin actually IS instead. Closed
+// or unstattable stdin → not a client, default to HTTP.
+function stdinIsPipe(): boolean {
+  try {
+    const stat = fstatSync(0);
+    return stat.isFIFO() || stat.isSocket();
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const config = loadConfig();
-  const isStdio = process.argv.includes('--stdio');
-
-  const client = new FloeApiClient(config.apiBaseUrl, config.apiKey);
+  // Transport selection: --stdio / --http are explicit overrides. With
+  // neither flag, default to stdio whenever stdin is a pipe — that is what
+  // an MCP client spawning us looks like — and to HTTP when run
+  // interactively in a terminal or as a service. Bare `npx
+  // @floelabs/mcp-server` under Claude Desktop/Cursor therefore speaks MCP
+  // on stdout instead of silently starting an HTTP listener the client
+  // will hang on, while the systemd-hosted deploy keeps serving HTTP.
+  const wantsStdio = process.argv.includes('--stdio');
+  const wantsHttp = process.argv.includes('--http');
+  const isStdio = wantsStdio || (!wantsHttp && stdinIsPipe());
 
   if (isStdio) {
+    const client = new FloeApiClient(config.apiBaseUrl, config.apiKey);
+    if (!config.apiKey) {
+      console.error(
+        '[floe-mcp] No FLOE_API_KEY set — running keyless. Only get_markets, ' +
+        'check_x402_url, and search_floe_docs will work; every other tool ' +
+        'returns AUTH_REQUIRED. Get a key at https://dev-dashboard.floelabs.xyz',
+      );
+    }
     const server = createMcpServer(client);
     const transport = new StdioServerTransport();
     await server.connect(transport);
@@ -76,31 +107,31 @@ async function main() {
     app.post('/mcp', async (req, res) => {
       const authHeader = req.headers.authorization;
       const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-      const allowFallback = process.env.ALLOW_SHARED_KEY_FALLBACK === 'true';
 
-      // Shared-key fallback is only safe when the request comes from a
-      // trusted origin. Without this check, any website visited by the
-      // operator can invoke MCP tools using the process-wide FLOE_API_KEY
-      // as an ambient credential (CVE-level CORS + auth bypass).
-      if (!bearerToken && allowFallback) {
-        const origin = req.headers.origin;
-        if (origin && !trustedOrigins.has(origin)) {
-          return res.status(403).json({
-            error: 'Cross-origin shared-key fallback is not allowed',
-            detail: 'Set MCP_TRUSTED_ORIGINS to include your origin, or pass a Bearer token',
-          });
-        }
-      }
+      // Per-request Bearer is the identity in HTTP mode. No header → a
+      // keyless client: the public tools (get_markets, check_x402_url,
+      // search_floe_docs) still work and every key-gated tool returns a
+      // structured AUTH_REQUIRED error instead of a transport-level 401.
+      // The old ALLOW_SHARED_KEY_FALLBACK escape hatch is gone: requests
+      // without an Origin header (curl, server-side callers) used to slip
+      // past the origin check and inherit the process-wide FLOE_API_KEY
+      // as an ambient credential. Headerless callers must never inherit
+      // the shared key.
+      const reqClient = new FloeApiClient(config.apiBaseUrl, bearerToken);
 
-      if (!bearerToken && !allowFallback) {
-        return res.status(401).json({ error: 'Missing Bearer token' });
-      }
+      // Scope narrowing via query params (Supabase/Neon pattern):
+      //   ?read_only=true        → register only non-mutating tools
+      //   ?features=spend,docs   → register only the named capability groups
+      // The server is already instantiated per request, so filtering at
+      // registration time is free.
+      const requestUrl = new URL(req.url, 'http://localhost');
+      const readOnly = requestUrl.searchParams.get('read_only') === 'true';
+      const rawFeatures = requestUrl.searchParams.get('features');
+      const features = rawFeatures
+        ? rawFeatures.split(',').map((f) => f.trim()).filter(Boolean)
+        : undefined;
 
-      const reqClient = bearerToken
-        ? new FloeApiClient(config.apiBaseUrl, bearerToken)
-        : client;
-
-      const server = createMcpServer(reqClient);
+      const server = createMcpServer(reqClient, { readOnly, features });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
       let cleanedUp = false;
