@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createMcpServer } from '../src/server.js';
 import { FloeApiClient } from '../src/client.js';
-import { clearDocsCache, LLMS_TXT_URL } from '../src/docs.js';
+import { clearDocsCache, LLMS_TXT_FALLBACK_URL, LLMS_TXT_URL } from '../src/docs.js';
 
 // Offline smoke tests for the tool surface: registration counts, keyless
 // gating, read_only/features scope filtering, and error-payload shape.
@@ -210,6 +210,33 @@ describe('keyless tier', () => {
     // Both terms hit "Session Spend Limit"; only "spend" hits "Spend Controls".
     expect(payload.matches.map((m: { title: string }) => m.title))
       .toEqual(['Session Spend Limit', 'Spend Controls']);
+  });
+
+  it('search_floe_docs falls back to the GitBook index when the primary fails', async () => {
+    const llms = [
+      '## Floe Docs',
+      '- [Spend Controls](https://docs.test/spend-controls)',
+    ].join('\n');
+    stubFetch((url) => {
+      if (url === LLMS_TXT_URL) return new Response('not found', { status: 404 });
+      if (url === LLMS_TXT_FALLBACK_URL) return new Response(llms, { status: 200 });
+      return undefined;
+    });
+    const { payload } = await callTool(makeServer(undefined), 'search_floe_docs', { query: 'spend', limit: 10 });
+    expect(payload.source).toBe(LLMS_TXT_FALLBACK_URL);
+    expect(payload.matches.map((m: { title: string }) => m.title)).toEqual(['Spend Controls']);
+  });
+
+  it('search_floe_docs surfaces the primary error when both indexes fail', async () => {
+    stubFetch((url) =>
+      url === LLMS_TXT_URL || url === LLMS_TXT_FALLBACK_URL
+        ? new Response('bad gateway', { status: 502 })
+        : undefined);
+    const { payload } = await callTool(makeServer(undefined), 'search_floe_docs', { query: 'spend', limit: 10 });
+    expect(payload.error).toBe('DOCS_FETCH_FAILED');
+    expect(payload.status).toBe(502);
+    // The primary source's error is the one reported, not the fallback's.
+    expect(payload.message).toContain(LLMS_TXT_URL);
   });
 });
 

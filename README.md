@@ -63,7 +63,7 @@ see [Keyless tier](#keyless-tier).
 
 **Scope params** — narrow what a session can do straight from the URL:
 
-```
+```text
 https://mcp.floelabs.xyz/mcp?read_only=true          # only non-mutating tools
 https://mcp.floelabs.xyz/mcp?features=spend,pricing  # only the named capability groups
 ```

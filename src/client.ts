@@ -44,19 +44,21 @@ export class FloeApiClient {
     return headers;
   }
 
-  private async request<T = any>(
+  // Low-level fetch shared by request() and proxyFetch(): owns the
+  // AbortController/timeout, maps aborts to a structured TIMEOUT error, and
+  // pre-reads the body text so callers only differ in how they interpret it.
+  private async rawFetch(
     method: string,
     path: string,
     body?: unknown,
     extraHeaders?: Record<string, string>,
-  ): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+  ): Promise<{ res: Response; text: string }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await fetch(`${this.baseUrl}${path}`, {
         method,
         headers: this.headers(extraHeaders),
         body: body ? JSON.stringify(body) : undefined,
@@ -71,19 +73,29 @@ export class FloeApiClient {
       clearTimeout(timeout);
     }
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      let parsed: any;
-      try { parsed = JSON.parse(text); } catch { parsed = { message: text }; }
-      throw new ApiError(res.status, parsed?.error ?? `HTTP ${res.status}`, parsed?.message ?? text);
-    }
+    const text = await res.text().catch(() => '');
+    return { res, text };
+  }
+
+  private httpError(res: Response, text: string): ApiError {
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch { parsed = { message: text }; }
+    return new ApiError(res.status, parsed?.error ?? `HTTP ${res.status}`, parsed?.message ?? text);
+  }
+
+  private async request<T = any>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<T> {
+    const { res, text } = await this.rawFetch(method, path, body, extraHeaders);
+    if (!res.ok) throw this.httpError(res, text);
 
     // 204 No Content (and any other empty-body success) must not blow up
     // `JSON.parse('')`. Used by `clear_spend_limit` / `delete_credit_threshold`
     // and any future endpoint whose contract says "ack-only".
-    if (res.status === 204) return undefined as T;
-    const text = await res.text();
-    if (text.trim().length === 0) return undefined as T;
+    if (res.status === 204 || text.trim().length === 0) return undefined as T;
     return JSON.parse(text) as T;
   }
 
@@ -311,33 +323,13 @@ export class FloeApiClient {
     body: { url: string; method?: string; headers?: Record<string, string>; body?: string },
     idempotencyKey?: string,
   ) {
-    const url = `${this.baseUrl}/v1/proxy/fetch`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: this.headers(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined),
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        throw new ApiError(0, 'TIMEOUT', `Request to POST /v1/proxy/fetch timed out after ${this.timeoutMs}ms`);
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    const text = await res.text().catch(() => '');
-    if (!res.ok) {
-      let parsed: any;
-      try { parsed = JSON.parse(text); } catch { parsed = { message: text }; }
-      throw new ApiError(res.status, parsed?.error ?? `HTTP ${res.status}`, parsed?.message ?? text);
-    }
+    const { res, text } = await this.rawFetch(
+      'POST',
+      '/v1/proxy/fetch',
+      body,
+      idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    );
+    if (!res.ok) throw this.httpError(res, text);
 
     // The proxy passes the vendor response through verbatim — it is NOT
     // guaranteed to be JSON. Surface status + the X-Floe-* metering headers

@@ -174,10 +174,13 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         });
       }
       try {
-        return textResult(await fn(args ?? {}));
+        const out = await fn(args ?? {});
+        // Ack-only backend routes (204 / empty body) resolve undefined;
+        // JSON.stringify(undefined) would emit a text-less content item.
+        return textResult(out === undefined ? { ok: true } : out);
       } catch (e: any) {
         if (e instanceof ToolInputError) {
-          return errorResult('INVALID_ARGUMENT', { message: e.message });
+          return errorResult('INVALID_ARGUMENT', { status: 400, message: e.message });
         }
         if (e instanceof ApiError) {
           const details: Record<string, unknown> = { status: e.status, message: e.message };
@@ -185,7 +188,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
           if (next) details.next = next;
           return errorResult(e.code, details);
         }
-        return errorResult(e?.code ?? 'ERROR', { message: e?.message });
+        return errorResult(e?.code ?? 'ERROR', { status: 500, message: e?.message });
       }
     });
   };
@@ -480,7 +483,8 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     {
       items: z.array(z.object({
         url: z.string().url().describe('Planned x402 URL.'),
-        method: z.string().regex(/^[A-Z]{3,7}$/).optional().describe('HTTP method (uppercase, default GET).'),
+        method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
+          .optional().describe('HTTP method (default GET).'),
         count: z.number().int().positive().max(10_000).optional().describe('How many times the plan calls this URL (default 1).'),
         task_id: z.string().min(1).max(128).optional().describe('Optional task id for task-scoped policy preflight.'),
       })).min(1).max(50).describe('The planned paid calls.'),

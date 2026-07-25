@@ -17,7 +17,7 @@ import { ApiError } from './client.js';
  */
 
 export const LLMS_TXT_URL = 'https://dev-dashboard.floelabs.xyz/llms.txt';
-const LLMS_TXT_FALLBACK_URL = 'https://floe-labs.gitbook.io/docs/llms.txt';
+export const LLMS_TXT_FALLBACK_URL = 'https://floe-labs.gitbook.io/docs/llms.txt';
 
 export interface DocEntry {
   section: string;
@@ -28,12 +28,15 @@ export interface DocEntry {
 
 const CACHE_TTL_MS = 5 * 60_000;
 const FETCH_TIMEOUT_MS = 10_000;
+const FAILURE_COOLDOWN_MS = 30_000;
 
 let cache: { entries: DocEntry[]; fetchedAt: number; source: string } | null = null;
+let lastFailureAt = 0;
 
-/** Test hook — drop the module-level cache between test cases. */
+/** Test hook — drop the module-level cache and failure cooldown between test cases. */
 export function clearDocsCache(): void {
   cache = null;
+  lastFailureAt = 0;
 }
 
 /**
@@ -106,7 +109,11 @@ async function fetchIndex(url: string): Promise<DocEntry[]> {
 
 export async function searchFloeDocs(query: string, limit: number) {
   const now = Date.now();
-  if (!cache || now - cache.fetchedAt > CACHE_TTL_MS) {
+  const stale = !cache || now - cache.fetchedAt > CACHE_TTL_MS;
+  // Refresh when stale — but during a source outage (recent failure), keep
+  // serving the stale index instead of re-fetching both URLs on every call.
+  // With no cache at all there is nothing to serve, so always retry then.
+  if (stale && (!cache || now - lastFailureAt > FAILURE_COOLDOWN_MS)) {
     try {
       cache = { entries: await fetchIndex(LLMS_TXT_URL), fetchedAt: now, source: LLMS_TXT_URL };
     } catch (primaryErr) {
@@ -117,12 +124,17 @@ export async function searchFloeDocs(query: string, limit: number) {
           source: LLMS_TXT_FALLBACK_URL,
         };
       } catch {
-        throw primaryErr; // the primary source's error is the useful one
+        lastFailureAt = now;
+        // Keep answering from the stale index if we have one; otherwise the
+        // primary source's error is the useful one.
+        if (!cache) throw primaryErr;
       }
     }
   }
-  const matches = matchEntries(cache.entries, query, limit);
+  // Non-null here: every path above either populated the cache or threw.
+  const index = cache!;
+  const matches = matchEntries(index.entries, query, limit);
   // `source` reports the URL the cached index actually came from, so a
   // fallback fetch isn't misattributed to the primary.
-  return { query, source: cache.source, totalEntries: cache.entries.length, matches };
+  return { query, source: index.source, totalEntries: index.entries.length, matches };
 }
