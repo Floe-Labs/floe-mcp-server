@@ -5,16 +5,16 @@
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
 **The spend layer for AI agents, over MCP.** Give Claude Desktop, Claude Code,
-Cursor, CrewAI, or any MCP client a single surface to pay 2,000+ vendor API services —
+Cursor, CrewAI, or any MCP client a single surface to pay for **LLM, voice, telephony, and data** across 2,000+ vendor API services —
 with budgets the agent can reason about. Walletless. No crypto required.
 
-[Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏](https://x.com/FloeLabs)
+[Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
 65 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
-> **Start free.** $3 in API credit on signup — no card, no wallet.
+> **Start free.** A **$3 Welcome Credit (300 API credits)** on signup — no card, no wallet.
 > [Get an agent key →](https://dev-dashboard.floelabs.xyz)
 
 ## What makes this different
@@ -544,9 +544,9 @@ The MCP server is a thin HTTP client. All protocol logic, indexer queries, and R
 
 ---
 
-## Protocol overview
+## Lending protocol (advanced)
 
-Floe is an **intent-based** lending protocol on Base, surfaced as the lending layer of the Financial OS:
+Floe is the **spend layer** for AI agents — one key that pays any vendor API under programmable budgets (everything above). It **also** exposes an advanced, crypto-native **intent-based lending layer** on Base, for agents that want working capital against deposits:
 
 1. **Primary market (USDC/USDC):** Deposit USDC as collateral, borrow up to 99.5% as a credit line. No price-volatility risk — same-token market.
 2. **Volatile markets:** Also supports WETH and cbBTC collateral for crypto-native use cases.
