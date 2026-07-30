@@ -27,7 +27,7 @@ before it commits** — and stops it before it overruns.
   *before* paying, not after.
 - **Context-aware budgets** — set a session spend cap; the agent tapers as it
   nears the limit and replans to finish on budget.
-- **The `floe-budget` Claude Skill** (ships in this repo) — the playbook that
+- **The Floe agent skill** ([Floe-Labs/agent-skills](https://github.com/Floe-Labs/agent-skills)) — the playbook that
   turns those tools into deliberate spending behavior. [Jump to it ↓](#budget-skill)
 - **Server-side enforcement** — the soft signal is the skill; the hard ceiling
   is the on-chain spend cap + merchant allowlist. The agent cannot overspend
@@ -69,7 +69,7 @@ https://mcp.floelabs.xyz/mcp?features=spend,pricing  # only the named capability
 ```
 
 Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `docs`.
-Both params combine. The `floe-budget` skill's decision loop needs `spend,pricing`.
+Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 
 → [Local stdio, global install, and key taxonomy below](#install-options)
 
@@ -418,23 +418,22 @@ Opt-in, default-deny restriction on **which destinations** the agent may pay. An
 
 <a id="budget-skill"></a>
 
-## Budget-awareness skill (`floe-budget`)
+## Budget-awareness skill
 
-A portable [Claude Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) ships with this repo at [`skills/floe-budget/`](skills/floe-budget/). It makes any Claude-native agent (Claude Code, the Agent SDK, claude.ai, or any MCP client) spend its Floe credit deliberately: read budget status before paying, **taper** as it nears the tightest cap, **replan** to finish the task on budget, and **stop** before the ceiling.
+Floe's agent skills live in their own repo: **[Floe-Labs/agent-skills](https://github.com/Floe-Labs/agent-skills)**.
 
-The MCP tools above are the *actions*; the skill is the *playbook*. It reads budget status from the existing `get_credit_remaining`, `get_spend_limit`, `estimate_x402_cost`, and `get_loan_state` tools, plus the `X-Floe-Budget-Advisory` header the Floe x402 proxy stamps on paid responses. No new tool or backend is required.
+The [`floe` skill](https://github.com/Floe-Labs/agent-skills/tree/main/skills/floe) is the *playbook* that turns the MCP tools above into deliberate spending behavior: read budget status before paying, **taper** as it nears the tightest cap, **replan** to finish the task on budget, and **stop** before the ceiling. It reads status from the existing `get_credit_remaining`, `get_spend_limit`, `estimate_x402_cost`, and `get_loan_state` tools, plus the `X-Floe-Budget-Advisory` header the Floe x402 proxy stamps on paid responses — no new tool or backend required.
 
 > **Soft signal, not the guardrail.** The skill helps a cooperative agent spend wisely. The real ceiling is enforced **server-side** — the on-chain credit line, the session spend cap, and (if configured) the merchant allowlist refuse calls past the limit regardless of what the agent decides.
 
-**Use it:**
+**Install:**
 
-- **Claude Code** — copy the folder into your personal (or a repo's `.claude/`) skills directory; Claude discovers it automatically from the `SKILL.md` frontmatter.
-  - From a cloned repo: `cp -r skills/floe-budget ~/.claude/skills/`
-  - From an npm install: `cp -r node_modules/@floelabs/mcp-server/skills/floe-budget ~/.claude/skills/`
-- **claude.ai / Agent SDK** — upload or register the `floe-budget` skill folder per the [Agent Skills docs](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview).
-- **Any MCP client** — point the model at [`skills/floe-budget/SKILL.md`](skills/floe-budget/SKILL.md) as system/context guidance alongside the Floe MCP connection.
-
-See [`skills/floe-budget/SKILL.md`](skills/floe-budget/SKILL.md) for the playbook and [`skills/floe-budget/reference.md`](skills/floe-budget/reference.md) for the `X-Floe-Budget-Advisory` field reference.
+```bash
+npx skills add floe-labs/agent-skills          # skills.sh CLI
+# or manually:
+git clone https://github.com/floe-labs/agent-skills
+cp -r agent-skills/skills/floe ~/.claude/skills/   # or .claude/skills/ per-project
+```
 
 ---
 
