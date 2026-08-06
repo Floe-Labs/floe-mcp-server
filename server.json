@@ -1,6 +1,6 @@
 {
   "name": "io.github.floe-labs/payments",
-  "description": "Spend management and pay-as-you-go payments for AI agents over MCP — pre-transaction spend controls, multi-agent keys, and one key to pay 2,000+ vendor API services.",
+  "description": "Unified billing ledger for voice AI over MCP — one key for every voice tool and model (STT, TTS, LLM, telephony) plus 2,000+ vendor APIs, with pre-transaction budget caps.",
   "version": "0.3.0",
   "repository": {
     "url": "https://github.com/Floe-Labs/floe-mcp-server",

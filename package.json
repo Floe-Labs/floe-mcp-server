@@ -2,7 +2,7 @@
   "name": "@floelabs/mcp-server",
   "mcpName": "io.github.floe-labs/payments",
   "version": "0.3.0",
-  "description": "Credit and payments for AI agent developers",
+  "description": "Unified billing ledger for voice AI — one key for every voice tool and model, budget-capped.",
   "license": "MIT",
   "type": "module",
   "bin": {
