@@ -72,8 +72,8 @@ Or by JSON config:
 ```
 
 Get your agent key: [dashboard](https://dev-dashboard.floelabs.xyz) → Create agent → copy the `floe_<hex>` key
-(shown once). Or from the CLI: `npx @floelabs/cli init` — paste your dashboard developer key and it creates
-the agent and mints the key for you. No key yet? The server still works —
+(shown once). Or from the CLI: `npx @floelabs/cli init` — paste your dashboard developer key and it
+creates (or selects) the agent and mints the key for you. No key yet? The server still works —
 see [Keyless tier](#keyless-tier).
 
 **Scope params** — narrow what a session can do straight from the URL:
