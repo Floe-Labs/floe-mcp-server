@@ -26,7 +26,8 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
 | **MCP** — hosted MCP server (65 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
-| **NPM** — the CLI + SDK | `npm i -g floe-agent` |
+| **CLI** — mint a key + print the base-URL swap | `npx @floelabs/cli init` |
+| **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
 New accounts get a **$3 Welcome Credit (300 API credits)** — no card. [Set up with your AI tools →](https://floe-labs.gitbook.io/docs/getting-started/setup-with-ai-tools) · [Get a key →](https://dev-dashboard.floelabs.xyz)
 
@@ -71,7 +72,8 @@ Or by JSON config:
 ```
 
 Get your agent key: [dashboard](https://dev-dashboard.floelabs.xyz) → Create agent → copy the `floe_<hex>` key
-(shown once). Or from the CLI: `npx floe-agent register --name my-agent`. No key yet? The server still works —
+(shown once). Or from the CLI: `npx @floelabs/cli init` — paste your dashboard developer key and it
+creates (or selects) the agent and mints the key for you. No key yet? The server still works —
 see [Keyless tier](#keyless-tier).
 
 **Scope params** — narrow what a session can do straight from the URL:
@@ -232,9 +234,15 @@ Get an **agent key**:
 2. Connect your wallet and **Create an agent** (name + borrow limit + max rate)
 3. Copy the `floe_<64-hex>` key shown at the end of the wizard — it is revealed once
 
-You can also mint one from the CLI without visiting the dashboard:
+You can also mint one from the CLI:
 
 ```bash
+# Platform CLI — interactive: paste your developer key, create or select an
+# agent, and the minted agent key lands in your OS keychain
+# (manage it later with `floe keys list` / `floe keys rotate`)
+npx @floelabs/cli init
+
+# SDK-level alternatives:
 # TypeScript SDK
 npx floe-agent register --name my-agent --borrow-limit 10000
 
@@ -591,6 +599,7 @@ Key concepts:
 - [Website](https://floelabs.xyz)
 - [Dashboard](https://dev-dashboard.floelabs.xyz)
 - [Documentation](https://floe-labs.gitbook.io/docs)
+- [Platform CLI (`@floelabs/cli`)](https://github.com/Floe-Labs/floe-cli)
 - [TypeScript SDK (`floe-agent`)](https://github.com/Floe-Labs/agentkit-actions)
 - [Python SDK (`floe-agentkit-actions`)](https://github.com/Floe-Labs/agentkit-actions-py)
 - [End-to-end examples](https://github.com/Floe-Labs/floe-cookbook)
