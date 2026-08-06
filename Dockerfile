@@ -16,4 +16,5 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 # MCP over stdio — the transport Glama uses for introspection. Pass a key via
 # FLOE_API_KEY for the full toolset; the keyless tier responds without one.
+USER node
 ENTRYPOINT ["node", "dist/index.js", "--stdio"]
