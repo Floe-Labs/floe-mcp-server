@@ -26,7 +26,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
 | **MCP** — hosted MCP server (65 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
-| **CLI** — mint a key + print the base-URL swap | `npx @floelabs/cli init` |
+| **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
 New accounts get a **$3 Welcome Credit (300 API credits)** — no card. [Set up with your AI tools →](https://floe-labs.gitbook.io/docs/getting-started/setup-with-ai-tools) · [Get a key →](https://dev-dashboard.floelabs.xyz)
@@ -239,7 +239,8 @@ You can also mint one from the CLI:
 ```bash
 # Platform CLI — interactive: paste your developer key, create or select an
 # agent, and the minted agent key lands in your OS keychain
-# (manage it later with `floe keys list` / `floe keys rotate`)
+# (manage agent keys later with `floe keys list|create|rotate|revoke`,
+#  developer keys with `floe devkeys`)
 npx @floelabs/cli init
 
 # SDK-level alternatives:
@@ -249,6 +250,12 @@ npx floe-agent register --name my-agent --borrow-limit 10000
 # Python SDK
 floe-agent register --name my-agent --borrow-limit 10000
 ```
+
+The platform CLI and this MCP server cover the same API surface. `@floelabs/cli` is the
+full platform from a terminal — agents, keys, budgets, policies, billing, funds, phone,
+metered calls — with `--json` on every command and stable exit codes for scripts and CI.
+MCP remains the richer in-context integration: tools your agent discovers, reasons over,
+and calls mid-session without shelling out.
 
 Get a **developer key** (unlocks the lifecycle tools — `create_agent`, key minting, budgets, funding, webhooks — and multi-tenant visibility across all your agents):
 
