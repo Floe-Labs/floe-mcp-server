@@ -310,6 +310,24 @@ describe('error payloads', () => {
     expect(apiCalls()).toHaveLength(1);
   });
 
+  it('create_webhook rejects a non-numeric loan scope_value locally', async () => {
+    const { result, payload } = await callTool(makeServer(DEV_KEY), 'create_webhook', {
+      url: 'https://x.test/h', events: ['loan.repaid'], scope: 'loan', scope_value: 'loan-7',
+    });
+    expect(result.isError).toBe(true);
+    expect(payload.error).toBe('INVALID_ARGUMENT');
+    expect(payload.message).toContain('numeric loan id');
+    expect(apiCalls()).toHaveLength(0);
+  });
+
+  it('create_webhook / update_webhook url schemas reject plain http', () => {
+    const server = makeServer(DEV_KEY);
+    expect(parseArgs(server, 'create_webhook', { url: 'http://x.test/h', events: ['loan.repaid'] }).success).toBe(false);
+    expect(parseArgs(server, 'create_webhook', { url: 'https://x.test/h', events: ['loan.repaid'] }).success).toBe(true);
+    expect(parseArgs(server, 'update_webhook', { webhook_id: 4, url: 'http://x.test/h' }).success).toBe(false);
+    expect(parseArgs(server, 'update_webhook', { webhook_id: 4, url: 'https://x.test/h' }).success).toBe(true);
+  });
+
   it('update_webhook rejects an empty update locally', async () => {
     const { result, payload } = await callTool(makeServer(DEV_KEY), 'update_webhook', { webhook_id: 4 });
     expect(result.isError).toBe(true);

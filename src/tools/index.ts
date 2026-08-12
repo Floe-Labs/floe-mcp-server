@@ -793,7 +793,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
   tool('create_webhook', { group: 'webhooks', access: 'write', key: 'dev' },
     'Register a webhook endpoint for account events. Returns the signing secret ONCE — store it to verify deliveries. Subscribe to exact event names, "*", or prefix wildcards like "call.*"; call list_webhook_events for the live 30-event catalog (loan, agent, credit, call, phone, marketplace categories). Max 10 webhooks.',
     {
-      url: z.string().url().max(2048).describe('HTTPS endpoint to deliver events to.'),
+      url: z.string().url().max(2048)
+        .refine((value) => /^https:\/\//i.test(value), 'URL must use https://')
+        .describe('HTTPS endpoint to deliver events to.'),
       events: z.array(z.string().min(1)).min(1).describe('Event names to subscribe to — exact names, "*", or prefix wildcards like "call.*" (validated server-side; see list_webhook_events).'),
       scope: z.enum(['global', 'wallet', 'agent', 'loan']).default('global').describe('Delivery scope (default global). "agent" filters to one agent by its wallet address.'),
       scope_value: z.string().max(256).optional().describe('Wallet address (scope wallet/agent — the agent WALLET address, not the numeric agent id) or numeric loan id (scope loan). Omit for global.'),
@@ -812,6 +814,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       }
       if ((scope === 'wallet' || scope === 'agent') && !/^0x[a-fA-F0-9]{40}$/.test(scope_value ?? '')) {
         throw new ToolInputError(`scope="${scope}" requires scope_value to be a 0x wallet address (for scope="agent", the agent's wallet address, not its numeric id).`);
+      }
+      if (scope === 'loan' && !/^\d+$/.test(scope_value ?? '')) {
+        throw new ToolInputError('scope="loan" requires scope_value to be a numeric loan id.');
       }
       return client.createWebhook({ url, events, scope, scopeValue: scope_value, description });
     });
@@ -837,7 +842,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'Update a webhook endpoint: change its URL, subscribed events, description, or pause/resume it via active. Scope cannot be changed after creation — delete and recreate instead.',
     {
       webhook_id: z.number().int().positive().describe('Webhook id (from list_webhooks).'),
-      url: z.string().url().max(2048).optional().describe('New HTTPS endpoint URL.'),
+      url: z.string().url().max(2048)
+        .refine((value) => /^https:\/\//i.test(value), 'URL must use https://')
+        .optional().describe('New HTTPS endpoint URL.'),
       events: z.array(z.string().min(1)).min(1).optional().describe('Replacement event list (exact names, "*", or prefix wildcards).'),
       active: z.boolean().optional().describe('false pauses deliveries, true resumes them.'),
       description: z.string().max(256).optional().describe('New human-readable label.'),
