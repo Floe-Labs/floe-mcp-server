@@ -19,6 +19,9 @@ const ADDED_TOOLS = [
   'create_agent_key', 'rotate_agent_key', 'revoke_agent_key', 'set_agent_key_budget',
   'get_funding_instructions', 'get_balances', 'get_activity', 'get_usage_summary',
   'x402_forecast', 'x402_pay', 'create_webhook', 'list_webhooks', 'test_webhook',
+  'list_webhook_events', 'get_webhook', 'update_webhook', 'delete_webhook',
+  'rotate_webhook_secret', 'list_webhook_deliveries', 'get_webhook_delivery',
+  'retry_webhook_delivery',
   'open_credit_line', 'get_credit_line_bounds', 'search_floe_docs', 'check_x402_url',
 ];
 const WRITE_TOOLS = [
@@ -30,6 +33,7 @@ const WRITE_TOOLS = [
   'create_agent', 'pause_agent', 'resume_agent', 'close_agent',
   'create_agent_key', 'rotate_agent_key', 'revoke_agent_key', 'set_agent_key_budget',
   'open_credit_line', 'x402_pay', 'create_webhook', 'test_webhook',
+  'update_webhook', 'delete_webhook', 'rotate_webhook_secret', 'retry_webhook_delivery',
 ];
 
 interface RecordedCall {
@@ -88,8 +92,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 65 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(65);
+  it('registers exactly 73 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(73);
   });
 
   it('does not register the removed tools', () => {
@@ -97,7 +101,7 @@ describe('tool surface', () => {
     for (const removed of REMOVED_TOOLS) expect(names).not.toContain(removed);
   });
 
-  it('registers all 23 contract-added tools', () => {
+  it('registers all 31 contract-added tools', () => {
     const names = toolNames(makeServer(DEV_KEY));
     for (const added of ADDED_TOOLS) expect(names).toContain(added);
   });
@@ -117,7 +121,7 @@ describe('tool surface', () => {
 describe('scope filtering', () => {
   it('read_only=true registers only non-mutating tools', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
-    expect(names).toHaveLength(36);
+    expect(names).toHaveLength(40);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -290,6 +294,46 @@ describe('error payloads', () => {
     });
     expect(apiCalls()).toHaveLength(1);
   });
+
+  it('create_webhook scope=agent requires a wallet address, not the numeric agent id', async () => {
+    const server = makeServer(DEV_KEY);
+    const numericId = await callTool(server, 'create_webhook', {
+      url: 'https://x.test/h', events: ['call.*'], scope: 'agent', scope_value: '7',
+    });
+    expect(numericId.payload.error).toBe('INVALID_ARGUMENT');
+    expect(numericId.payload.message).toContain('wallet address');
+    expect(apiCalls()).toHaveLength(0);
+
+    await callTool(server, 'create_webhook', {
+      url: 'https://x.test/h', events: ['call.*'], scope: 'agent', scope_value: '0x' + 'a'.repeat(40),
+    });
+    expect(apiCalls()).toHaveLength(1);
+  });
+
+  it('create_webhook rejects a non-numeric loan scope_value locally', async () => {
+    const { result, payload } = await callTool(makeServer(DEV_KEY), 'create_webhook', {
+      url: 'https://x.test/h', events: ['loan.repaid'], scope: 'loan', scope_value: 'loan-7',
+    });
+    expect(result.isError).toBe(true);
+    expect(payload.error).toBe('INVALID_ARGUMENT');
+    expect(payload.message).toContain('numeric loan id');
+    expect(apiCalls()).toHaveLength(0);
+  });
+
+  it('create_webhook / update_webhook url schemas reject plain http', () => {
+    const server = makeServer(DEV_KEY);
+    expect(parseArgs(server, 'create_webhook', { url: 'http://x.test/h', events: ['loan.repaid'] }).success).toBe(false);
+    expect(parseArgs(server, 'create_webhook', { url: 'https://x.test/h', events: ['loan.repaid'] }).success).toBe(true);
+    expect(parseArgs(server, 'update_webhook', { webhook_id: 4, url: 'http://x.test/h' }).success).toBe(false);
+    expect(parseArgs(server, 'update_webhook', { webhook_id: 4, url: 'https://x.test/h' }).success).toBe(true);
+  });
+
+  it('update_webhook rejects an empty update locally', async () => {
+    const { result, payload } = await callTool(makeServer(DEV_KEY), 'update_webhook', { webhook_id: 4 });
+    expect(result.isError).toBe(true);
+    expect(payload.error).toBe('INVALID_ARGUMENT');
+    expect(apiCalls()).toHaveLength(0);
+  });
 });
 
 describe('input schemas match the backend contract', () => {
@@ -319,6 +363,16 @@ describe('input schemas match the backend contract', () => {
     expect(parsed.success && parsed.data).toMatchObject({ max_rate_bps: 1500, expiry_seconds: 7776000 });
   });
 
+  it('list_webhook_deliveries pins the backend filter contract', () => {
+    const server = makeServer(DEV_KEY);
+    expect(parseArgs(server, 'list_webhook_deliveries', { status: 'timeout' }).success).toBe(false);
+    expect(parseArgs(server, 'list_webhook_deliveries', { limit: 200 }).success).toBe(false); // backend clamps at 100
+    expect(parseArgs(server, 'list_webhook_deliveries', { agent_wallet: 'not-an-address' }).success).toBe(false);
+    expect(parseArgs(server, 'list_webhook_deliveries', {
+      status: 'failed', agent_wallet: '0x' + 'a'.repeat(40), limit: 100,
+    }).success).toBe(true);
+  });
+
   it('x402_pay rejects non-http(s) URLs before any spend', () => {
     const server = makeServer(AGENT_KEY);
     expect(parseArgs(server, 'x402_pay', { url: 'file:///etc/passwd' }).success).toBe(false);
@@ -344,6 +398,15 @@ describe('new tool wiring', () => {
 
     await callTool(server, 'resume_agent', { agent_id: '7' });
     expect(apiCalls()[1]).toMatchObject({ method: 'PATCH', url: `${BASE}/v1/developer/agents/7/status` });
+  });
+
+  it('list_webhook_deliveries maps snake_case args onto the backend query params', async () => {
+    await callTool(makeServer(DEV_KEY), 'list_webhook_deliveries', {
+      endpoint_id: 4, event: 'call.ended', status: 'failed', id_search: 'sess-1', limit: 50,
+    });
+    expect(apiCalls()[0].url).toBe(
+      `${BASE}/v1/developer/webhook-deliveries?endpoint=4&event=call.ended&status=failed&id=sess-1&limit=50`,
+    );
   });
 
   it('get_funding_instructions falls back to the agent detail when /funding 404s', async () => {

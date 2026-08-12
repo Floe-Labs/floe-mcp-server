@@ -784,29 +784,39 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       client.proxyFetch({ url, method, headers, body }, idempotency_key));
 
   // ═══════════════════════════════════════════════════════════════════
-  // WEBHOOK TOOLS (3) — developer-side push notifications. Thin wrappers;
-  // the event catalog is validated server-side so new event types (spend/
-  // key lifecycle) light up without a server release here.
+  // WEBHOOK TOOLS (11) — developer-side push notifications + delivery
+  // logs. Thin wrappers; the event catalog is validated server-side (and
+  // served live by list_webhook_events) so new event types light up
+  // without a server release here.
   // ═══════════════════════════════════════════════════════════════════
 
   tool('create_webhook', { group: 'webhooks', access: 'write', key: 'dev' },
-    'Register a webhook endpoint for account events. Returns the signing secret ONCE — store it to verify deliveries. Current event catalog: loan.health_warning, loan.expiry_warning, loan.liquidated, loan.repaid, agent.created, key.created, key.rotated, x402.first_settlement (plus credit.warning / credit.at_limit / credit.recovered via register_credit_threshold). Max 10 webhooks.',
+    'Register a webhook endpoint for account events. Returns the signing secret ONCE — store it to verify deliveries. Subscribe to exact event names, "*", or prefix wildcards like "call.*"; call list_webhook_events for the live 30-event catalog (loan, agent, credit, call, phone, marketplace categories). Max 10 webhooks.',
     {
-      url: z.string().url().max(2048).describe('HTTPS endpoint to deliver events to.'),
-      events: z.array(z.string().min(1)).min(1).describe('Event names to subscribe to (validated server-side).'),
-      scope: z.enum(['global', 'wallet', 'loan']).default('global').describe('Delivery scope (default global).'),
-      scope_value: z.string().max(256).optional().describe('Wallet address or loan id when scope is not global.'),
+      url: z.string().url().max(2048)
+        .refine((value) => /^https:\/\//i.test(value), 'URL must use https://')
+        .describe('HTTPS endpoint to deliver events to.'),
+      events: z.array(z.string().min(1)).min(1).describe('Event names to subscribe to — exact names, "*", or prefix wildcards like "call.*" (validated server-side; see list_webhook_events).'),
+      scope: z.enum(['global', 'wallet', 'agent', 'loan']).default('global').describe('Delivery scope (default global). "agent" filters to one agent by its wallet address.'),
+      scope_value: z.string().max(256).optional().describe('Wallet address (scope wallet/agent — the agent WALLET address, not the numeric agent id) or numeric loan id (scope loan). Omit for global.'),
       description: z.string().max(256).optional().describe('Human-readable label.'),
     },
     ({ url, events, scope, scope_value, description }) => {
-      // The backend pairs scope with scopeValue strictly: wallet needs an
-      // address, loan needs a numeric id, global must have neither. Reject
-      // the incoherent combos here so the agent gets the rule, not a 400.
+      // The backend pairs scope with scopeValue strictly: wallet/agent need
+      // an address, loan needs a numeric id, global must have neither.
+      // Reject the incoherent combos here so the agent gets the rule, not
+      // a 400.
       if (scope === 'global' && scope_value !== undefined) {
         throw new ToolInputError('scope="global" does not accept a scope_value.');
       }
       if (scope !== 'global' && scope_value === undefined) {
         throw new ToolInputError(`scope="${scope}" requires a scope_value (wallet address or numeric loan id).`);
+      }
+      if ((scope === 'wallet' || scope === 'agent') && !/^0x[a-fA-F0-9]{40}$/.test(scope_value ?? '')) {
+        throw new ToolInputError(`scope="${scope}" requires scope_value to be a 0x wallet address (for scope="agent", the agent's wallet address, not its numeric id).`);
+      }
+      if (scope === 'loan' && !/^\d+$/.test(scope_value ?? '')) {
+        throw new ToolInputError('scope="loan" requires scope_value to be a numeric loan id.');
       }
       return client.createWebhook({ url, events, scope, scopeValue: scope_value, description });
     });
@@ -816,12 +826,87 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     {},
     () => client.listWebhooks());
 
+  tool('list_webhook_events', { group: 'webhooks', access: 'read', key: 'dev' },
+    'List the live webhook event catalog: every subscribable event with its name, title, description, category (loan/agent/credit/call/phone/marketplace), and scope dimension. The authoritative list for create_webhook / update_webhook events arrays.',
+    {},
+    () => client.listWebhookEvents());
+
+  tool('get_webhook', { group: 'webhooks', access: 'read', key: 'dev' },
+    'Get one webhook endpoint plus its delivery stats (pending/success/failed/retrying/total counts). Secrets are never returned.',
+    {
+      webhook_id: z.number().int().positive().describe('Webhook id (from list_webhooks).'),
+    },
+    ({ webhook_id }) => client.getWebhook(webhook_id));
+
+  tool('update_webhook', { group: 'webhooks', access: 'write', key: 'dev' },
+    'Update a webhook endpoint: change its URL, subscribed events, description, or pause/resume it via active. Scope cannot be changed after creation — delete and recreate instead.',
+    {
+      webhook_id: z.number().int().positive().describe('Webhook id (from list_webhooks).'),
+      url: z.string().url().max(2048)
+        .refine((value) => /^https:\/\//i.test(value), 'URL must use https://')
+        .optional().describe('New HTTPS endpoint URL.'),
+      events: z.array(z.string().min(1)).min(1).optional().describe('Replacement event list (exact names, "*", or prefix wildcards).'),
+      active: z.boolean().optional().describe('false pauses deliveries, true resumes them.'),
+      description: z.string().max(256).optional().describe('New human-readable label.'),
+    },
+    ({ webhook_id, url, events, active, description }) => {
+      if (url === undefined && events === undefined && active === undefined && description === undefined) {
+        throw new ToolInputError('Provide at least one field to update: url, events, active, or description.');
+      }
+      return client.updateWebhook(webhook_id, { url, events, active, description });
+    });
+
+  tool('delete_webhook', { group: 'webhooks', access: 'write', key: 'dev' },
+    'Delete a webhook endpoint permanently. Deliveries to it stop immediately; its delivery history is removed with it.',
+    {
+      webhook_id: z.number().int().positive().describe('Webhook id (from list_webhooks).'),
+    },
+    ({ webhook_id }) => client.deleteWebhook(webhook_id));
+
   tool('test_webhook', { group: 'webhooks', access: 'write', key: 'dev' },
     'Send a signed test delivery to one webhook endpoint so you can verify connectivity and signature handling end-to-end.',
     {
       webhook_id: z.number().int().positive().describe('Webhook id (from list_webhooks).'),
     },
     ({ webhook_id }) => client.testWebhook(webhook_id));
+
+  tool('rotate_webhook_secret', { group: 'webhooks', access: 'write', key: 'dev' },
+    'Rotate a webhook\'s signing secret. Returns the new secret ONCE — update your receiver before old-secret deliveries stop verifying.',
+    {
+      webhook_id: z.number().int().positive().describe('Webhook id (from list_webhooks).'),
+    },
+    ({ webhook_id }) => client.rotateWebhookSecret(webhook_id));
+
+  tool('list_webhook_deliveries', { group: 'webhooks', access: 'read', key: 'dev' },
+    'List the account-wide webhook delivery log (all endpoints), newest first, with cursor pagination. Rows carry event, status (pending/success/failed/retrying), HTTP status, attempt count, agent wallet, and correlation id (call id / job id / loan id) — but not payloads; use get_webhook_delivery for those. Logs are retained 30 days.',
+    {
+      endpoint_id: z.number().int().positive().optional().describe('Filter to one webhook endpoint id.'),
+      event: z.string().min(1).max(128).optional().describe('Filter by exact event name (no wildcards).'),
+      agent_wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional().describe('Filter by agent wallet address.'),
+      status: z.enum(['pending', 'success', 'failed', 'retrying']).optional().describe('Filter by delivery status.'),
+      from: z.string().min(1).optional().describe('Only deliveries at/after this ISO timestamp.'),
+      to: z.string().min(1).optional().describe('Only deliveries at/before this ISO timestamp.'),
+      id_search: z.string().min(1).max(128).optional().describe('Match a delivery id OR correlation id (call session id, job id, loan id).'),
+      cursor: z.string().min(1).optional().describe('Opaque cursor from a previous response\'s nextCursor.'),
+      limit: z.number().int().min(1).max(100).default(50).describe('Page size (default 50, max 100).'),
+    },
+    ({ endpoint_id, event, agent_wallet, status, from, to, id_search, cursor, limit }) =>
+      client.listWebhookDeliveries({ endpoint: endpoint_id, event, agent: agent_wallet, status, from, to, id: id_search, cursor, limit }));
+
+  tool('get_webhook_delivery', { group: 'webhooks', access: 'read', key: 'dev' },
+    'Get one webhook delivery in full: the exact payload that was sent, the sanitized response body (capped at 1KB), and the next retry time if it is still retrying.',
+    {
+      delivery_id: z.string().min(1).max(64).describe('The hex delivery id (from list_webhook_deliveries rows or the X-Floe-Delivery-Id header) — not the numeric row id.'),
+    },
+    ({ delivery_id }) => client.getWebhookDelivery(delivery_id));
+
+  tool('retry_webhook_delivery', { group: 'webhooks', access: 'write', key: 'dev' },
+    'Manually redeliver one failed webhook delivery to its endpoint. Test deliveries cannot be retried. Receivers should dedupe on the X-Floe-Delivery-Id header.',
+    {
+      webhook_id: z.number().int().positive().describe('Webhook id the delivery belongs to.'),
+      delivery_id: z.string().min(1).max(64).describe('The hex delivery id to redeliver.'),
+    },
+    ({ webhook_id, delivery_id }) => client.retryWebhookDelivery(webhook_id, delivery_id));
 
   // ═══════════════════════════════════════════════════════════════════
   // DOCS (1) — Stripe pattern: the agent should not need a second MCP

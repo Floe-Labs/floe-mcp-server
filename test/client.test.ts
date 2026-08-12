@@ -107,7 +107,15 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
     ['createWebhook', () => client.createWebhook({ url: 'https://x.test/h', events: ['loan.repaid'], scope: 'global' }),
       'POST', '/v1/developer/webhooks'],
     ['listWebhooks', () => client.listWebhooks(), 'GET', '/v1/developer/webhooks'],
+    ['listWebhookEvents', () => client.listWebhookEvents(), 'GET', '/v1/developer/webhooks/events'],
+    ['getWebhook', () => client.getWebhook(4), 'GET', '/v1/developer/webhooks/4'],
+    ['updateWebhook', () => client.updateWebhook(4, { active: false }), 'PATCH', '/v1/developer/webhooks/4'],
+    ['deleteWebhook', () => client.deleteWebhook(4), 'DELETE', '/v1/developer/webhooks/4'],
     ['testWebhook', () => client.testWebhook(4), 'POST', '/v1/developer/webhooks/4/test'],
+    ['rotateWebhookSecret', () => client.rotateWebhookSecret(4), 'POST', '/v1/developer/webhooks/4/rotate-secret'],
+    ['retryWebhookDelivery', () => client.retryWebhookDelivery(4, 'a1b2c3'), 'POST', '/v1/developer/webhooks/4/deliveries/a1b2c3/retry'],
+    ['listWebhookDeliveries', () => client.listWebhookDeliveries(), 'GET', '/v1/developer/webhook-deliveries'],
+    ['getWebhookDelivery', () => client.getWebhookDelivery('a1b2c3'), 'GET', '/v1/developer/webhook-deliveries/a1b2c3'],
     ['openCreditLine', () => client.openCreditLine('7', { depositRaw: '10000000' }),
       'POST', '/v1/developer/agents/7/open-credit-line'],
     ['getCreditLineBounds', () => client.getCreditLineBounds('7'),
@@ -129,6 +137,16 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
     await client.checkX402Url('https://v.test/api?a=1');
     expect(last().method).toBe('GET');
     expect(last().url).toBe(`${BASE}/v1/proxy/check?url=https%3A%2F%2Fv.test%2Fapi%3Fa%3D1`);
+  });
+
+  it('listWebhookDeliveries serializes filters into the query string', async () => {
+    await client.listWebhookDeliveries({
+      endpoint: 4, event: 'call.ended', agent: '0x' + 'a'.repeat(40),
+      status: 'failed', from: '2026-08-01T00:00:00Z', id: 'sess-1', limit: 25,
+    });
+    expect(last().url).toBe(
+      `${BASE}/v1/developer/webhook-deliveries?endpoint=4&event=call.ended&agent=0x${'a'.repeat(40)}&status=failed&from=2026-08-01T00%3A00%3A00Z&id=sess-1&limit=25`,
+    );
   });
 
   it('getActivity/getUsageSummary serialize filters into the query string', async () => {

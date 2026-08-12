@@ -300,7 +300,49 @@ export class FloeApiClient {
     return this.post('/v1/developer/webhooks', body);
   }
   listWebhooks() { return this.get('/v1/developer/webhooks'); }
+  listWebhookEvents() { return this.get('/v1/developer/webhooks/events'); }
+  getWebhook(webhookId: number) { return this.get(`/v1/developer/webhooks/${webhookId}`); }
+  updateWebhook(webhookId: number, body: {
+    url?: string;
+    events?: string[];
+    active?: boolean;
+    description?: string;
+  }) {
+    return this.request('PATCH', `/v1/developer/webhooks/${webhookId}`, body);
+  }
+  deleteWebhook(webhookId: number) { return this.request('DELETE', `/v1/developer/webhooks/${webhookId}`); }
   testWebhook(webhookId: number) { return this.post(`/v1/developer/webhooks/${webhookId}/test`, {}); }
+  rotateWebhookSecret(webhookId: number) { return this.post(`/v1/developer/webhooks/${webhookId}/rotate-secret`, {}); }
+  retryWebhookDelivery(webhookId: number, deliveryId: string) {
+    return this.post(`/v1/developer/webhooks/${webhookId}/deliveries/${encodeURIComponent(deliveryId)}/retry`, {});
+  }
+  listWebhookDeliveries(params?: {
+    endpoint?: number;
+    event?: string;
+    agent?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    id?: string;
+    cursor?: string;
+    limit?: number;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.endpoint !== undefined) qs.set('endpoint', String(params.endpoint));
+    if (params?.event) qs.set('event', params.event);
+    if (params?.agent) qs.set('agent', params.agent);
+    if (params?.status) qs.set('status', params.status);
+    if (params?.from) qs.set('from', params.from);
+    if (params?.to) qs.set('to', params.to);
+    if (params?.id) qs.set('id', params.id);
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return this.get(`/v1/developer/webhook-deliveries${q ? '?' + q : ''}`);
+  }
+  getWebhookDelivery(deliveryId: string) {
+    return this.get(`/v1/developer/webhook-deliveries/${encodeURIComponent(deliveryId)}`);
+  }
   openCreditLine(agentId: string, body: { depositRaw: string; maxLtvBps?: number; maxRateBps?: number }) {
     return this.post(`/v1/developer/agents/${agentId}/open-credit-line`, body);
   }
