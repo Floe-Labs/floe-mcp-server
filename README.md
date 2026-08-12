@@ -10,7 +10,7 @@ with budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-65 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+73 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
@@ -25,7 +25,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 |---|---|
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
-| **MCP** — hosted MCP server (65 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
+| **MCP** — hosted MCP server (73 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
 | **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
@@ -98,13 +98,13 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Spend governance** | `register_credit_threshold`, `list_credit_thresholds`, `delete_credit_threshold` (webhooks) | govern + alert on utilization |
 | **Merchant allowlist** | `set_allowlist_mode`, `get_allowlist_mode`, `add_allowlist_entry`, `remove_allowlist_entry`, `list_allowlist` | default-deny on which destinations the agent may pay |
 | **Funding & observability** | `get_funding_instructions`, `get_balances`, `get_activity`, `get_usage_summary` | fund agents + watch the fleet spend |
-| **Webhooks** | `create_webhook`, `list_webhooks`, `test_webhook` | push notifications for account events |
+| **Webhooks** | `create_webhook`, `list_webhooks`, `list_webhook_events`, `get_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `rotate_webhook_secret`, `list_webhook_deliveries`, `get_webhook_delivery`, `retry_webhook_delivery` | push notifications for account events + the delivery log |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (65)](#tools-65) below.
+Full per-tool reference is in [Tools (73)](#tools-73) below.
 
 ---
 
@@ -302,7 +302,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (65)
+## Tools (73)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -352,9 +352,17 @@ Bootstrap and manage the fleet without touching the dashboard.
 
 | Tool | Description |
 |------|-------------|
-| `create_webhook` | Register an endpoint for account events (signing secret shown once) |
+| `create_webhook` | Register an endpoint for account events (signing secret shown once). Scopes: `global`, `wallet`, `agent` (agent wallet address), `loan`; events accept exact names, `*`, or prefix wildcards like `call.*` |
 | `list_webhooks` | List registered webhooks (secrets never returned) |
+| `list_webhook_events` | The live event catalog — 30 events across loan / agent / credit / call / phone / marketplace |
+| `get_webhook` | One webhook + its delivery stats (pending/success/failed/retrying/total) |
+| `update_webhook` | Change URL, events, description, or pause/resume via `active` (scope is immutable) |
+| `delete_webhook` | Delete an endpoint permanently |
 | `test_webhook` | Send a signed test delivery to verify connectivity end-to-end |
+| `rotate_webhook_secret` | Rotate the signing secret (new secret shown once) |
+| `list_webhook_deliveries` | Account-wide delivery log with filters (endpoint, event, agent wallet, status, time range, delivery/correlation id) + cursor pagination; 30-day retention |
+| `get_webhook_delivery` | One delivery in full: sent payload, sanitized response body, next retry time |
+| `retry_webhook_delivery` | Manually redeliver a failed delivery (dedupe on `X-Floe-Delivery-Id`) |
 
 ### Docs (`docs`) — keyless
 

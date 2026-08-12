@@ -1,7 +1,7 @@
 {
   "name": "io.github.floe-labs/payments",
   "description": "Unified billing ledger for voice AI over MCP — one key for every voice tool and model (STT, TTS, LLM, telephony) plus 2,000+ vendor APIs, with pre-transaction budget caps.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "repository": {
     "url": "https://github.com/Floe-Labs/floe-mcp-server",
     "source": "github"
@@ -10,7 +10,7 @@
     {
       "registryType": "npm",
       "identifier": "@floelabs/mcp-server",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "transport": {
         "type": "stdio"
       }
@@ -18,7 +18,7 @@
     {
       "registryType": "url",
       "identifier": "https://mcp.floelabs.xyz/mcp",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "transport": {
         "type": "streamable-http"
       }
