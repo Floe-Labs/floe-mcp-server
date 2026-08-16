@@ -290,6 +290,18 @@ export class FloeApiClient {
     const q = qs.toString();
     return this.get(`/v1/developer/analytics/summary${q ? '?' + q : ''}`);
   }
+  // Coverage Score — share of known spend Floe can enforce pre-call vs
+  // reconciled (off-path) vs dark. Scoped to one agent when `agentId` is
+  // given, else the fleet-wide variant. Both live under /v1/developer/*.
+  getCoverageScore(params?: { agentId?: string; days?: number }) {
+    const qs = new URLSearchParams();
+    if (params?.days !== undefined) qs.set('days', String(params.days));
+    const q = qs.toString();
+    const base = params?.agentId
+      ? `/v1/developer/agents/${params.agentId}/coverage`
+      : '/v1/developer/coverage';
+    return this.get(`${base}${q ? '?' + q : ''}`);
+  }
   createWebhook(body: {
     url: string;
     events: string[];

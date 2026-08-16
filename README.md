@@ -10,7 +10,7 @@ with budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-73 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+74 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
@@ -25,7 +25,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 |---|---|
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
-| **MCP** — hosted MCP server (73 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
+| **MCP** — hosted MCP server (74 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
 | **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
@@ -97,14 +97,14 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Agent awareness** ⭐ | `get_credit_remaining`, `get_loan_state`, `get_spend_limit`, `set_spend_limit`, `clear_spend_limit` | every agent — reason about cost before paying |
 | **Spend governance** | `register_credit_threshold`, `list_credit_thresholds`, `delete_credit_threshold` (webhooks) | govern + alert on utilization |
 | **Merchant allowlist** | `set_allowlist_mode`, `get_allowlist_mode`, `add_allowlist_entry`, `remove_allowlist_entry`, `list_allowlist` | default-deny on which destinations the agent may pay |
-| **Funding & observability** | `get_funding_instructions`, `get_balances`, `get_activity`, `get_usage_summary` | fund agents + watch the fleet spend |
+| **Funding & observability** | `get_funding_instructions`, `get_balances`, `get_activity`, `get_usage_summary`, `get_coverage_score` | fund agents + watch the fleet spend + measure enforcement coverage |
 | **Webhooks** | `create_webhook`, `list_webhooks`, `list_webhook_events`, `get_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `rotate_webhook_secret`, `list_webhook_deliveries`, `get_webhook_delivery`, `retry_webhook_delivery` | push notifications for account events + the delivery log |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (73)](#tools-73) below.
+Full per-tool reference is in [Tools (74)](#tools-74) below.
 
 ---
 
@@ -302,7 +302,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (73)
+## Tools (74)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -347,6 +347,7 @@ Bootstrap and manage the fleet without touching the dashboard.
 | `get_balances` | Aggregate USDC across developer wallet, agent wallets, and API credits |
 | `get_activity` | Unified activity feed (proxy calls, onramps, transfers, loans) with filters + cursor pagination |
 | `get_usage_summary` | Spend/usage analytics rollup: KPIs, daily series, top endpoints |
+| `get_coverage_score` | Coverage Score: share of known spend Floe enforces pre-call vs reconciled (off-path) vs dark. Pass `agent_id` for one agent, omit for the fleet |
 
 ### Webhooks (`webhooks`) — developer key
 
