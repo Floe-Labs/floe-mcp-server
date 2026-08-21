@@ -92,8 +92,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 73 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(73);
+  it('registers exactly 74 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(74);
   });
 
   it('does not register the removed tools', () => {
@@ -121,7 +121,7 @@ describe('tool surface', () => {
 describe('scope filtering', () => {
   it('read_only=true registers only non-mutating tools', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
-    expect(names).toHaveLength(40);
+    expect(names).toHaveLength(41);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -424,6 +424,25 @@ describe('new tool wiring', () => {
       chainId: 8453,
       asset: 'USDC',
     });
+  });
+
+  it('get_coverage_score scopes to an agent with agent_id, fleet-wide otherwise, and annotates the buckets', async () => {
+    const server = makeServer(DEV_KEY);
+
+    // Schema default: days = 30 when omitted (MCP SDK applies it pre-handler).
+    const parsed = parseArgs(server, 'get_coverage_score', {});
+    expect(parsed.success && parsed.data).toMatchObject({ days: 30 });
+
+    stubFetch(() => jsonRes({ coverageBps: 6200 }));
+    const scoped = await callTool(server, 'get_coverage_score', { agent_id: '7', days: 14 });
+    expect(apiCalls()[0].url).toBe(`${BASE}/v1/developer/agents/7/coverage?days=14`);
+    // The handler passes the backend body through and appends an honest note.
+    expect(scoped.payload).toMatchObject({ coverageBps: 6200 });
+    expect(scoped.payload.note).toContain('reconciled');
+
+    await callTool(server, 'get_coverage_score', {});
+    // callTool bypasses the SDK, so no default is applied → fleet, no query.
+    expect(apiCalls()[1].url).toBe(`${BASE}/v1/developer/coverage`);
   });
 
   it('get_funding_instructions passes the funding endpoint response through when it exists', async () => {

@@ -156,6 +156,15 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
     expect(last().url).toBe(`${BASE}/v1/developer/analytics/summary?window=30d&agentId=7`);
   });
 
+  it('getCoverageScore routes agent-scoped vs fleet-wide and serializes days', async () => {
+    await client.getCoverageScore({ agentId: '7', days: 30 });
+    expect(last().url).toBe(`${BASE}/v1/developer/agents/7/coverage?days=30`);
+    await client.getCoverageScore({ days: 7 });
+    expect(last().url).toBe(`${BASE}/v1/developer/coverage?days=7`);
+    await client.getCoverageScore();
+    expect(last().url).toBe(`${BASE}/v1/developer/coverage`);
+  });
+
   it('forecastX402 maps task_id → taskId in the request body', async () => {
     await client.forecastX402({ items: [{ url: 'https://v.test/api', count: 3, taskId: 'research' }] });
     expect(JSON.parse(last().body!)).toEqual({

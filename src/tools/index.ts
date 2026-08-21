@@ -695,8 +695,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     ({ agent_id }) => client.getCreditLineBounds(agent_id));
 
   // ═══════════════════════════════════════════════════════════════════
-  // FUNDING & OBSERVABILITY TOOLS (4) — developer-side monitoring: how
-  // to fund an agent, and what the fleet has been doing/spending.
+  // FUNDING & OBSERVABILITY TOOLS (5) — developer-side monitoring: how
+  // to fund an agent, what the fleet has been doing/spending, and how much
+  // of that spend Floe actually enforces (Coverage Score).
   // ═══════════════════════════════════════════════════════════════════
 
   tool('get_funding_instructions', { group: 'observability', access: 'read', key: 'dev' },
@@ -759,6 +760,31 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       agent_id: agentId.optional().describe('Scope to one agent (numeric id).'),
     },
     ({ window, agent_id }) => client.getUsageSummary({ window, agentId: agent_id }));
+
+  tool('get_coverage_score', { group: 'observability', access: 'read', key: 'dev' },
+    'Report the Coverage Score: the share of an agent\'s (or the whole fleet\'s) KNOWN spend Floe can enforce ' +
+    'pre-call vs reconciled (off-path, seen only after the fact) vs dark (never seen). Answers "how much of my ' +
+    'agent\'s spend is actually enforced?" Pass agent_id to scope to one agent; omit it for the fleet-wide score ' +
+    '(this server has no configured primary agent, so a keyless-of-agent call is fleet-wide by design). Pairs ' +
+    'with floe-guard\'s opt-in ledger sync, which feeds the reconciled bucket. Budget, not balance.',
+    {
+      agent_id: agentId.optional().describe('Numeric agent id (from create_agent / list_agents) to scope the score to one agent. Omit for the fleet-wide Coverage Score across all agents.'),
+      days: z.number().int().min(1).max(365).default(30).describe('Look-back window in days (default 30).'),
+    },
+    async ({ agent_id, days }) => {
+      const coverage = await client.getCoverageScore({ agentId: agent_id, days });
+      // Append an honest read of the buckets so the agent doesn't mistake
+      // "reconciled" for "enforced": reconciled spend was recorded AFTER the
+      // fact (via floe-guard ledger sync), never gated pre-call. A lower
+      // enforceable % is the signal to route more spend through Floe.
+      return {
+        ...coverage,
+        note: 'Coverage = share of KNOWN spend Floe gated BEFORE the call (pre-call-enforceable) vs reconciled ' +
+          '(off-path spend Floe saw only after the fact via floe-guard ledger sync — recorded, not gated) vs dark ' +
+          '(spend Floe never saw). Reconciled is NOT enforced; a lower enforceable % means route more spend through ' +
+          'Floe. This is budget coverage, not a balance.',
+      };
+    });
 
   // ═══════════════════════════════════════════════════════════════════
   // PAYMENT EXECUTION (1) — the tool that actually spends. Everything
