@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-**The unified billing ledger for voice AI, over MCP.** Give Claude Desktop, Claude Code,
+**Cost-truth and margin for voice AI, over MCP.** Give Claude Desktop, Claude Code,
 Cursor, CrewAI, or any MCP client one key for every voice tool and model a voice agent uses — **STT, TTS, LLM, telephony** — plus 2,000+ vendor API services,
 with budgets the agent can reason about. Walletless. No crypto required.
 
