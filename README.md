@@ -4,9 +4,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-**Cost-truth and margin for voice AI, over MCP.** Give Claude Desktop, Claude Code,
-Cursor, CrewAI, or any MCP client one key for every voice tool and model a voice agent uses — **STT, TTS, LLM, telephony** — plus 2,000+ vendor API services,
-with budgets the agent can reason about. Walletless. No crypto required.
+**Floe over MCP — know what every AI call really costs.** Floe costs each call the moment
+it ends across every vendor — telephony, STT, LLM, TTS, tools — on one ledger, ties the spend
+to the client and campaign, and shows your margin per contract, so you can bill your own
+customers off those actuals. This server puts that layer in your MCP client: give Claude
+Desktop, Claude Code, Cursor, CrewAI, or any MCP client one key for every voice tool and model
+a voice agent uses — **STT, TTS, LLM, telephony** — plus 2,000+ vendor API services, with
+budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
