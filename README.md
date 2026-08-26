@@ -1,6 +1,8 @@
 # @floelabs/mcp-server
 
 [![npm version](https://img.shields.io/npm/v/@floelabs/mcp-server)](https://www.npmjs.com/package/@floelabs/mcp-server)
+[![npm downloads](https://img.shields.io/npm/dm/@floelabs/mcp-server)](https://www.npmjs.com/package/@floelabs/mcp-server)
+[![CI](https://github.com/Floe-Labs/floe-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/Floe-Labs/floe-mcp-server/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
