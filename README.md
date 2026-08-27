@@ -386,9 +386,9 @@ What your **own** vendors charged you (FLO-746), reconciled against those vendor
 
 `costRaw` is `null` for `pending` and `manual` — report units, never a zero. `exact` and `period-rate` are returned as **separate subtotals** and must never be added into one number.
 
-**When a cost arrives:** the moment the call ends for **ElevenLabs only**; within **~10 minutes** for telephony and Deepgram; **next day** for every LLM and cloud leg. So `pending` is the **steady state** for a recent Twilio call — `Call.price` is populated asynchronously after the call completes. That is not a defect.
+**When a cost arrives:** some legs can be costed the moment a call ends, others only on the vendor's next-day batch — so a recent leg reads `pending`, which is the steady state, not a defect.
 
-**Coverage reads low on voice-heavy accounts at launch.** TTS, streaming STT, duration-billed realtime and telephony transport are Floe-measured rather than vendor-reported, so they are structurally barred from `period-rate`; their dollars go to a named residual.
+**Coverage reads low on voice-heavy accounts at launch** — a property of what vendors publish, not your setup. Close the gap via the invoice lane.
 
 | Tool | Description |
 |------|-------------|

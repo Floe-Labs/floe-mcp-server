@@ -41,10 +41,9 @@ const STATUS_LEGEND =
   'costRaw is null for pending and manual: report units, never a zero.';
 
 const TIMING_NOTE =
-  'WHEN A COST ARRIVES: costed the moment the call ends for ElevenLabs ONLY; within ~10 minutes for ' +
-  'telephony and Deepgram; NEXT DAY for every LLM and cloud leg. So `pending` is the STEADY STATE for a ' +
-  'recent Twilio call (Call.price is populated asynchronously after the call completes) — do not report it ' +
-  'as an error or a missing cost.';
+  'WHEN A COST ARRIVES: some legs can be costed the moment a call ends, others only on the vendor\'s ' +
+  'next-day batch. So `pending` on a recent call is the STEADY STATE — do not report it as an error or a ' +
+  'missing cost.';
 
 const OWNER_NOTE =
   'Floe-carried legs (cost_owner=platform) are omitted entirely, not shown at zero: that spend is Floe\'s ' +
@@ -1056,9 +1055,8 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'vendor dominates the bill" view. Each row separates `exactRaw` from `periodRateRaw` — they are different ' +
     'claims and must never be presented as one number — and carries a single `totalRaw` only when every leg ' +
     'in the row is fully priced. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' + OWNER_NOTE + ' ' +
-    'COVERAGE WILL LOOK LOW ON VOICE-HEAVY ACCOUNTS: TTS, streaming STT, duration-billed realtime and ' +
-    'telephony transport are Floe-measured rather than vendor-reported, so they are structurally barred from ' +
-    'period-rate and their dollars land in a named residual. That is expected, not a gap in the data. ' +
+    'COVERAGE WILL LOOK LOW ON VOICE-HEAVY ACCOUNTS at launch — a property of what vendors publish, not a ' +
+    'gap in the data. ' +
     'Requires the Pro feature `attribution_reports`.',
     {
       by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time']).default('customer')
