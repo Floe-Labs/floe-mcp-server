@@ -14,7 +14,7 @@ Desktop, Claude Code, Cursor, CrewAI, or any MCP client one key for every voice 
 a voice agent uses — **STT, TTS, LLM, telephony** — plus 2,000+ vendor API services, with
 budgets the agent can reason about. Walletless. No crypto required.
 
-[Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
+[Website](https://floefinance.com) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
 80 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
@@ -650,7 +650,7 @@ Key concepts:
 
 ## Links
 
-- [Website](https://floelabs.xyz)
+- [Website](https://floefinance.com)
 - [Dashboard](https://dev-dashboard.floelabs.xyz)
 - [Documentation](https://floe-labs.gitbook.io/docs)
 - [Platform CLI (`@floelabs/cli`)](https://github.com/Floe-Labs/floe-cli)
