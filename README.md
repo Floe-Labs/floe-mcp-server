@@ -16,7 +16,7 @@ budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floelabs.xyz) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-74 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+80 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
@@ -31,7 +31,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 |---|---|
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
-| **MCP** — hosted MCP server (74 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
+| **MCP** — hosted MCP server (80 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
 | **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
@@ -89,7 +89,7 @@ https://mcp.floelabs.xyz/mcp?read_only=true          # only non-mutating tools
 https://mcp.floelabs.xyz/mcp?features=spend,pricing  # only the named capability groups
 ```
 
-Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `docs`.
+Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `actuals`, `docs`.
 Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 
 → [Local stdio, global install, and key taxonomy below](#install-options)
@@ -105,12 +105,13 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Merchant allowlist** | `set_allowlist_mode`, `get_allowlist_mode`, `add_allowlist_entry`, `remove_allowlist_entry`, `list_allowlist` | default-deny on which destinations the agent may pay |
 | **Funding & observability** | `get_funding_instructions`, `get_balances`, `get_activity`, `get_usage_summary`, `get_coverage_score` | fund agents + watch the fleet spend + measure enforcement coverage |
 | **Webhooks** | `create_webhook`, `list_webhooks`, `list_webhook_events`, `get_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `rotate_webhook_secret`, `list_webhook_deliveries`, `get_webhook_delivery`, `retry_webhook_delivery` | push notifications for account events + the delivery log |
+| **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection` | what your OWN vendors charged you, reconciled against their billing records |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (74)](#tools-74) below.
+Full per-tool reference is in [Tools (80)](#tools-80) below.
 
 ---
 
@@ -308,7 +309,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (74)
+## Tools (80)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -370,6 +371,37 @@ Bootstrap and manage the fleet without touching the dashboard.
 | `list_webhook_deliveries` | Account-wide delivery log with filters (endpoint, event, agent wallet, status, time range, delivery/correlation id) + cursor pagination; 30-day retention |
 | `get_webhook_delivery` | One delivery in full: sent payload, sanitized response body, next retry time |
 | `retry_webhook_delivery` | Manually redeliver a failed delivery (dedupe on `X-Floe-Delivery-Id`) |
+
+### Vendor actuals (`actuals`) — developer key
+
+What your **own** vendors charged you (FLO-746), reconciled against those vendors' billing records — not what Floe charged you. Every cost carries a **status**, and a status is a claim:
+
+| Status | Means | Never say |
+|---|---|---|
+| `exact` | reconciled to the vendor's own per-request billing record | — |
+| `period-rate` | priced at the vendor's own realized rate for that period | "exact", or anything implying per-request precision |
+| `invoiced` | footed to the vendor's invoice | — |
+| `pending` | the vendor hasn't published this cost yet | any dollar figure |
+| `manual` | no vendor API publishes this — upload the invoice | any dollar figure |
+
+`costRaw` is `null` for `pending` and `manual` — report units, never a zero. `exact` and `period-rate` are returned as **separate subtotals** and must never be added into one number.
+
+**When a cost arrives:** the moment the call ends for **ElevenLabs only**; within **~10 minutes** for telephony and Deepgram; **next day** for every LLM and cloud leg. So `pending` is the **steady state** for a recent Twilio call — `Call.price` is populated asynchronously after the call completes. That is not a defect.
+
+**Coverage reads low on voice-heavy accounts at launch.** TTS, streaming STT, duration-billed realtime and telephony transport are Floe-measured rather than vendor-reported, so they are structurally barred from `period-rate`; their dollars go to a named residual.
+
+| Tool | Description |
+|------|-------------|
+| `list_vendor_cost_legs` | Per-leg captured vendor cost with the vendor's own request id, typed units, status and provenance. Keyset-paginated. Filters: `since`/`until`, `vendor`, `customer_id`, `agent_id`, `campaign_id`, `task_id`, `status` |
+| `list_vendor_cost_calls` | Server-side by-call rollup — a `composition` count per call plus separate exact / period-rate subtotals. A single `totalRaw` only when every leg is priced and USD; otherwise `"partial — lower bound"` |
+| `get_vendor_cost_rollup` | Totals by `customer`, `campaign`, `agent`, `vendor`, or `time` (UTC day) |
+| `list_reconciliation_findings` | Everything the engine could **not** reconcile — unmatched legs/actuals, unit mismatches, stale connectors, invoice variance. The named reasons a total is a lower bound |
+| `list_vendor_connections` | Your vendor **billing** credentials (masked — key material is never returned) + the connector catalog. `bestStatus` is the ceiling: a `period-rate` connector will never produce `exact` |
+| `verify_vendor_connection` | Re-check one stored credential against the vendor now. Distinguishes "revoked, re-key it" (`unauthorized`) from "the vendor is down" (`degraded`). Advisory — a pass is not a scope guarantee |
+
+Gating: the four reads need the **Pro** feature `attribution_reports`; the two connection tools need the **Agency** feature `vendor_connections` (and admin/owner for `verify_vendor_connection`).
+
+**Not exposed over MCP, on purpose.** Invoice **upload** is a binary PUT to a signed storage URL — no agent has a file to send. **Footing** an invoice writes `invoiced` stamps against a vendor's invoice and is not undone by re-running, so that irreversible finance action keeps a human in the loop. **Resolving a finding** is a human verdict — the API refuses the machine's own `auto_cleared` for exactly that reason. **Creating** a connection writes a sealed credential, and credentials never travel through a tool call. All four live in the dashboard and in `floe actuals`.
 
 ### Docs (`docs`) — keyless
 

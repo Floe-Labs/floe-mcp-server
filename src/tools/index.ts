@@ -23,6 +23,39 @@ const ACTIVITY_EVENT_TYPE = z.enum([
   'facility_loan_failed',
 ]);
 
+// FLO-746. The five reconciliation statuses, and the ONE description of what
+// each is allowed to claim. Every actuals tool description quotes from here,
+// so an agent cannot read "period-rate" as a synonym for "exact" — they are
+// different claims, and the surface exists because conflating them is how a
+// vendor cost gets over-stated.
+const RECONCILIATION_STATUS = z.enum(['pending', 'manual', 'exact', 'period-rate', 'invoiced']);
+
+const STATUS_LEGEND =
+  'STATUS VOCABULARY (a status is a claim — never restate one as another): ' +
+  '`exact` = reconciled to the vendor\'s own per-request billing record. ' +
+  '`period-rate` = priced at the vendor\'s own realized rate for that period; a real derivation from the ' +
+  'vendor\'s own cost and usage APIs, but NOT per-request precision — never describe it as exact, and never ' +
+  'add it to the exact figure. `invoiced` = footed to the vendor\'s invoice. ' +
+  '`pending` = the vendor has not published this cost yet — units only, NO dollar figure. ' +
+  '`manual` = no vendor API publishes this; the invoice must be uploaded — units only, NO dollar figure. ' +
+  'costRaw is null for pending and manual: report units, never a zero.';
+
+const TIMING_NOTE =
+  'WHEN A COST ARRIVES: costed the moment the call ends for ElevenLabs ONLY; within ~10 minutes for ' +
+  'telephony and Deepgram; NEXT DAY for every LLM and cloud leg. So `pending` is the STEADY STATE for a ' +
+  'recent Twilio call (Call.price is populated asynchronously after the call completes) — do not report it ' +
+  'as an error or a missing cost.';
+
+const OWNER_NOTE =
+  'Floe-carried legs (cost_owner=platform) are omitted entirely, not shown at zero: that spend is Floe\'s ' +
+  'own COGS and the account\'s cost for those legs is already exact on the Floe ledger.';
+
+const TOTAL_NOTE =
+  'A row carries a single `totalRaw` ONLY when every leg in it is exact/period-rate/invoiced and ' +
+  'USD-denominated. Otherwise `totalRaw` is null and `totalLabel` says "partial — lower bound" with ' +
+  '`totalBlockedBy` naming why. Never substitute zero, and never sum a page yourself — the range-wide ' +
+  '`subtotals` block comes from a separate aggregate query.';
+
 // Capability groups for the `?features=a,b` scope param on the remote URL
 // (Supabase/Neon pattern). Every tool belongs to exactly one group; an
 // unknown feature name simply matches nothing.
@@ -34,6 +67,7 @@ export const FEATURE_GROUPS = [
   'observability',  // funding instructions, balances, activity, usage rollups
   'payments',       // x402_pay — the actual paid call
   'webhooks',       // developer webhook CRUD/test
+  'actuals',        // reconciled VENDOR cost + the billing connections behind it
   'docs',           // search_floe_docs
 ] as const;
 export type FeatureGroup = (typeof FEATURE_GROUPS)[number];
@@ -933,6 +967,167 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       delivery_id: z.string().min(1).max(64).describe('The hex delivery id to redeliver.'),
     },
     ({ webhook_id, delivery_id }) => client.retryWebhookDelivery(webhook_id, delivery_id));
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VENDOR ACTUALS (6) — what the account's OWN vendors charged it,
+  // reconciled against those vendors' billing records (FLO-746).
+  //
+  // A NINTH capability group rather than a corner of `observability`:
+  // `list_vendor_connections` and `verify_vendor_connection` sit on top of
+  // stored vendor BILLING credentials, and an operator must be able to scope
+  // that off (`?features=observability`) while still handing an agent the
+  // spend feed. Folding them together would make that impossible.
+  //
+  // WHAT IS DELIBERATELY NOT HERE:
+  //   - Invoice UPLOAD. It is a binary PUT to a signed storage URL; an agent
+  //     has no file to send and no way to benefit. Humans use the dashboard
+  //     or `floe actuals invoices upload`.
+  //   - Invoice FOOT. Footing writes `invoiced` stamps against a vendor's
+  //     invoice and is not undone by re-running. An irreversible finance
+  //     action wants a human in the loop, so it is not reachable from a tool
+  //     call. `floe actuals invoices foot --dry-run` is the safe rehearsal.
+  //   - Resolving a finding. `POST /actuals/findings/:id/resolve` refuses the
+  //     machine verdict `auto_cleared` precisely so a human's
+  //     "acknowledged"/"wont_fix" stays a human's. An agent sealing findings
+  //     would erase that distinction; findings are readable here and
+  //     resolvable by a person.
+  //   - Creating a vendor connection. That writes a sealed billing
+  //     credential; credentials never travel through a tool call.
+  //
+  // GATING: the four reads ride the existing Pro feature `attribution_reports`.
+  // The two connection tools ride the Agency feature `vendor_connections`,
+  // and the write half additionally needs an admin/owner role — so a Pro
+  // account gets the spend feed and a 403 `plan_required` on connections.
+  // ═══════════════════════════════════════════════════════════════════
+
+  tool('list_vendor_cost_legs', { group: 'actuals', access: 'read', key: 'dev' },
+    'List captured VENDOR cost legs — one row per non-Floe-settled vendor call (LLM turn, STT/TTS request, ' +
+    'telephony minute, tool call), each with the vendor\'s own request id, typed units, a reconciliation ' +
+    'status and, where the status earns one, a cost in raw 6-decimal USDC. This is what the account\'s ' +
+    'VENDORS charged it, not what Floe charged the account. Keyset-paginated: pass the returned `nextCursor` ' +
+    'back verbatim. ' + STATUS_LEGEND + ' ' + TIMING_NOTE + ' ' + OWNER_NOTE + ' ' +
+    'Non-USD legs are never FX-converted: costRaw is null and the vendor\'s verbatim string is in ' +
+    '`provenance.vendorCostNative`. Requires the Pro feature `attribution_reports`.',
+    {
+      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      vendor: z.string().optional().describe('Filter to one vendor, e.g. "twilio", "openai", "deepgram".'),
+      customer_id: z.string().optional().describe("Filter to one end-client tag (the agency's customer)."),
+      agent_id: z.string().optional().describe('Filter to one agent id.'),
+      campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
+      task_id: z.string().optional().describe('Filter to one task/call id.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).optional()
+        .describe('Filter to these reconciliation statuses. Omit for all five.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max legs, 1-500 (server default 100).'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    ({ since, until, vendor, customer_id, agent_id, campaign_id, task_id, status, limit, cursor }) =>
+      client.listVendorCostLegs({
+        since, until, vendor, customerId: customer_id, agentId: agent_id,
+        campaignId: campaign_id, taskId: task_id, status, limit, cursor,
+      }));
+
+  tool('list_vendor_cost_calls', { group: 'actuals', access: 'read', key: 'dev' },
+    'Vendor cost grouped BY CALL — the server-side rollup, so every leg of a call is either fully counted in ' +
+    'its group or the group is not on the page at all (no truncation can silently drop one). Each row carries ' +
+    'a `composition` count (how many legs are exact / period-rate / invoiced / pending / manual), separate ' +
+    '`exactRaw` and `periodRateRaw` subtotals, and a single `totalRaw` only when the call is fully priced. ' +
+    'Use this to answer "what did this call actually cost us?". ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' +
+    OWNER_NOTE + ' Requires the Pro feature `attribution_reports`.',
+    {
+      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      vendor: z.string().optional().describe('Filter to one vendor.'),
+      customer_id: z.string().optional().describe('Filter to one end-client tag.'),
+      agent_id: z.string().optional().describe('Filter to one agent id.'),
+      campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max call groups, 1-500 (server default 100).'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    ({ since, until, vendor, customer_id, agent_id, campaign_id, status, limit, cursor }) =>
+      client.listVendorCostCalls({
+        since, until, vendor, customerId: customer_id, agentId: agent_id,
+        campaignId: campaign_id, status, limit, cursor,
+      }));
+
+  tool('get_vendor_cost_rollup', { group: 'actuals', access: 'read', key: 'dev' },
+    'Roll vendor cost up by customer, campaign, agent, vendor, or day. The "which client is expensive / which ' +
+    'vendor dominates the bill" view. Each row separates `exactRaw` from `periodRateRaw` — they are different ' +
+    'claims and must never be presented as one number — and carries a single `totalRaw` only when every leg ' +
+    'in the row is fully priced. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' + OWNER_NOTE + ' ' +
+    'COVERAGE WILL LOOK LOW ON VOICE-HEAVY ACCOUNTS: TTS, streaming STT, duration-billed realtime and ' +
+    'telephony transport are Floe-measured rather than vendor-reported, so they are structurally barred from ' +
+    'period-rate and their dollars land in a named residual. That is expected, not a gap in the data. ' +
+    'Requires the Pro feature `attribution_reports`.',
+    {
+      by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time']).default('customer')
+        .describe('Rollup dimension. `time` buckets by UTC calendar day.'),
+      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      vendor: z.string().optional().describe('Filter to one vendor.'),
+      customer_id: z.string().optional().describe('Filter to one end-client tag.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max rows, 1-500 (server default 100).'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    ({ by, since, until, vendor, customer_id, status, limit, cursor }) =>
+      client.getVendorCostRollup(by, {
+        since, until, vendor, customerId: customer_id, status, limit, cursor,
+      }));
+
+  tool('list_reconciliation_findings', { group: 'actuals', access: 'read', key: 'dev' },
+    'List open reconciliation findings — the machine\'s own record of everything it could NOT reconcile: a ' +
+    'vendor record with no matching leg (`unmatched_actual`, usually broken tag injection), a leg past its ' +
+    'vendor\'s SLA with no record (`unmatched_leg`), disagreeing units, an unmapped line item, a stale ' +
+    'connector, a non-USD record, an unexplained invoice variance. Read these before trusting a coverage ' +
+    'number: they are the named reasons a total is a lower bound rather than a total. ' +
+    'Findings are RESOLVED BY A PERSON, not by a tool call — the API refuses the machine verdict ' +
+    '`auto_cleared` so that "acknowledged" and "wont_fix" stay human judgments. Requires the Pro feature ' +
+    '`attribution_reports`.',
+    {
+      kind: z.enum([
+        'unmatched_actual', 'unmatched_leg', 'units_mismatch', 'over_coverage', 'unknown_line_item',
+        'bucket_reopened', 'platform_zero_cost', 'connector_stale', 'invoice_foot_variance',
+        'currency_unsupported',
+      ]).optional().describe('Filter to one finding kind.'),
+      severity: z.enum(['info', 'warn', 'error']).optional().describe('Filter to one severity.'),
+      state: z.enum(['open', 'cleared', 'all']).default('open').describe('Which findings to list.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max findings, 1-500 (server default 100).'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    ({ kind, severity, state, limit, cursor }) =>
+      client.listReconciliationFindings({ kind, severity, state, limit, cursor }));
+
+  tool('list_vendor_connections', { group: 'actuals', access: 'read', key: 'dev' },
+    'List the account\'s vendor BILLING connections (read-only credentials Floe uses to pull each vendor\'s ' +
+    'own cost records) plus the connector catalog. Credential material is NEVER returned — only ' +
+    '`credentialPublic`, a per-kind mask in which identifiers (region, project id, account SID) are verbatim ' +
+    'and secrets are elided. The load-bearing field is `bestStatus`: the CEILING a leg served by this ' +
+    'connection can ever reach. A connector whose bestStatus is `period-rate` will never produce `exact`, no ' +
+    'matter how long you wait — so an account whose vendors are all period-rate connectors has no missing ' +
+    'data, it has a different (and honestly labelled) kind of number. Also check `status` ' +
+    '(`unauthorized` needs a re-key by the developer; `degraded` needs ops) and `lastSuccessAt` against ' +
+    '`freshnessSlaMinutes`. Connections are CREATED by a human (dashboard or `floe actuals connect`) because ' +
+    'they carry a credential; this tool only reads them. Requires the Agency feature `vendor_connections`.',
+    {},
+    () => client.listVendorConnections());
+
+  tool('verify_vendor_connection', { group: 'actuals', access: 'write', key: 'dev' },
+    'Verify one stored vendor billing connection by making a cheap read call against that vendor right now, ' +
+    'and record the outcome. Use it when a connector looks stale or a pull started failing, to tell "the ' +
+    'credential was revoked" (409 `verification_failed`, status becomes `unauthorized` — a human must ' +
+    're-key) from "the vendor is down" (502 `verification_unavailable`, status becomes `degraded` — nothing ' +
+    'to fix on our side). ADVISORY ONLY: Floe cannot inspect a vendor key\'s scope without calling the ' +
+    'vendor, so a pass proves a read succeeded at this moment, not that the key holds every scope a pull ' +
+    'needs. It reads from the vendor and writes only connection health — it never changes the credential or ' +
+    'touches any already-recorded cost. Requires the Agency feature `vendor_connections` and an admin/owner ' +
+    'role.',
+    {
+      connection_id: z.number().int().positive()
+        .describe('Numeric connection id from list_vendor_connections.'),
+    },
+    ({ connection_id }) => client.verifyVendorConnection(connection_id));
 
   // ═══════════════════════════════════════════════════════════════════
   // DOCS (1) — Stripe pattern: the agent should not need a second MCP
