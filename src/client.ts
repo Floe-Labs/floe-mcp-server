@@ -1,5 +1,19 @@
 import { VERSION } from './version.js';
 
+/** Shared filter shape for the three range-scoped vendor-actuals reads. */
+export interface VendorActualsQuery {
+  since?: string;
+  until?: string;
+  vendor?: string;
+  customerId?: string;
+  agentId?: string;
+  campaignId?: string;
+  taskId?: string;
+  status?: string[];
+  limit?: number;
+  cursor?: string;
+}
+
 /**
  * FloeApiClient — thin HTTP client for the Floe Credit API.
  * Replaces the entire ServiceContainer from the thick MCP server.
@@ -355,6 +369,62 @@ export class FloeApiClient {
   getWebhookDelivery(deliveryId: string) {
     return this.get(`/v1/developer/webhook-deliveries/${encodeURIComponent(deliveryId)}`);
   }
+  // ── Vendor actuals (FLO-746) ──────────────────────────────────────
+  // READS ONLY, plus connection verify. The reads share one filter shape
+  // (`since`/`until`/attribution/status), so they share one query builder —
+  // a per-route copy is how `customerId` ends up spelled `customer_id` on
+  // exactly one of them.
+  //
+  // Invoice upload and foot are deliberately absent from this client: see
+  // the `actuals` group banner in tools/index.ts.
+  private actualsQuery(params?: VendorActualsQuery): string {
+    const qs = new URLSearchParams();
+    if (params?.since) qs.set('since', params.since);
+    if (params?.until) qs.set('until', params.until);
+    if (params?.vendor) qs.set('vendor', params.vendor);
+    if (params?.customerId) qs.set('customerId', params.customerId);
+    if (params?.agentId) qs.set('agentId', params.agentId);
+    if (params?.campaignId) qs.set('campaignId', params.campaignId);
+    if (params?.taskId) qs.set('taskId', params.taskId);
+    // The route parses `status` as a comma-separated subset and 400s on any
+    // unrecognised member, so it is joined here rather than repeated.
+    if (params?.status?.length) qs.set('status', params.status.join(','));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    const q = qs.toString();
+    return q ? `?${q}` : '';
+  }
+  listVendorCostLegs(params?: VendorActualsQuery) {
+    return this.get(`/v1/developer/actuals/legs${this.actualsQuery(params)}`);
+  }
+  listVendorCostCalls(params?: VendorActualsQuery) {
+    return this.get(`/v1/developer/actuals/calls${this.actualsQuery(params)}`);
+  }
+  getVendorCostRollup(by: string, params?: VendorActualsQuery) {
+    const q = this.actualsQuery(params);
+    return this.get(`/v1/developer/actuals/rollups${q ? `${q}&` : '?'}by=${encodeURIComponent(by)}`);
+  }
+  listReconciliationFindings(params?: {
+    kind?: string;
+    severity?: string;
+    state?: string;
+    limit?: number;
+    cursor?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.kind) qs.set('kind', params.kind);
+    if (params?.severity) qs.set('severity', params.severity);
+    if (params?.state) qs.set('state', params.state);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    const q = qs.toString();
+    return this.get(`/v1/developer/actuals/findings${q ? '?' + q : ''}`);
+  }
+  listVendorConnections() { return this.get('/v1/developer/vendor-connections'); }
+  verifyVendorConnection(connectionId: number) {
+    return this.post(`/v1/developer/vendor-connections/${connectionId}/verify`, {});
+  }
+
   openCreditLine(agentId: string, body: { depositRaw: string; maxLtvBps?: number; maxRateBps?: number }) {
     return this.post(`/v1/developer/agents/${agentId}/open-credit-line`, body);
   }

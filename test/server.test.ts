@@ -23,6 +23,8 @@ const ADDED_TOOLS = [
   'rotate_webhook_secret', 'list_webhook_deliveries', 'get_webhook_delivery',
   'retry_webhook_delivery',
   'open_credit_line', 'get_credit_line_bounds', 'search_floe_docs', 'check_x402_url',
+  'list_vendor_cost_legs', 'list_vendor_cost_calls', 'get_vendor_cost_rollup',
+  'list_reconciliation_findings', 'list_vendor_connections', 'verify_vendor_connection',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -34,6 +36,7 @@ const WRITE_TOOLS = [
   'create_agent_key', 'rotate_agent_key', 'revoke_agent_key', 'set_agent_key_budget',
   'open_credit_line', 'x402_pay', 'create_webhook', 'test_webhook',
   'update_webhook', 'delete_webhook', 'rotate_webhook_secret', 'retry_webhook_delivery',
+  'verify_vendor_connection',
 ];
 
 interface RecordedCall {
@@ -92,8 +95,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 74 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(74);
+  it('registers exactly 80 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(80);
   });
 
   it('does not register the removed tools', () => {
@@ -101,7 +104,7 @@ describe('tool surface', () => {
     for (const removed of REMOVED_TOOLS) expect(names).not.toContain(removed);
   });
 
-  it('registers all 31 contract-added tools', () => {
+  it('registers all 37 contract-added tools', () => {
     const names = toolNames(makeServer(DEV_KEY));
     for (const added of ADDED_TOOLS) expect(names).toContain(added);
   });
@@ -121,7 +124,7 @@ describe('tool surface', () => {
 describe('scope filtering', () => {
   it('read_only=true registers only non-mutating tools', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
-    expect(names).toHaveLength(41);
+    expect(names).toHaveLength(46);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -147,6 +150,43 @@ describe('scope filtering', () => {
 
   it('unknown feature names match nothing', () => {
     expect(toolNames(makeServer(AGENT_KEY, { features: ['nope'] }))).toHaveLength(0);
+  });
+
+  it('actuals is its own group, scopable off without losing observability', () => {
+    const actuals = toolNames(makeServer(DEV_KEY, { features: ['actuals'] }));
+    expect(actuals).toHaveLength(6);
+    expect(actuals).toContain('list_vendor_cost_legs');
+    expect(actuals).toContain('list_vendor_connections');
+
+    // The point of a ninth group: an operator can hand an agent the spend
+    // feed while withholding every tool that touches a billing credential.
+    const observability = toolNames(makeServer(DEV_KEY, { features: ['observability'] }));
+    expect(observability).toHaveLength(5);
+    expect(observability).toContain('get_usage_summary');
+    expect(observability).not.toContain('list_vendor_connections');
+    expect(observability).not.toContain('list_vendor_cost_legs');
+  });
+
+  it('read_only keeps the actuals reads and drops the connection verify', () => {
+    const names = toolNames(makeServer(DEV_KEY, { readOnly: true, features: ['actuals'] }));
+    expect(names).toHaveLength(5);
+    expect(names).not.toContain('verify_vendor_connection');
+  });
+
+  it('never exposes invoice upload, foot, or finding resolution over MCP', () => {
+    // Footing an invoice is irreversible and wants a human; upload is a
+    // binary PUT with no agent value; resolving a finding is a human verdict
+    // the API deliberately withholds from the machine.
+    const names = toolNames(makeServer(DEV_KEY));
+    for (const forbidden of [
+      'upload_vendor_invoice',
+      'foot_vendor_invoice',
+      'create_vendor_connection',
+      'resolve_reconciliation_finding',
+    ]) {
+      expect(names).not.toContain(forbidden);
+    }
+    expect(names.some((n) => /foot|upload_invoice/.test(n))).toBe(false);
   });
 });
 
