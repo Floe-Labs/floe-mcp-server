@@ -1051,7 +1051,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       }));
 
   tool('get_vendor_cost_rollup', { group: 'actuals', access: 'read', key: 'dev' },
-    'Roll vendor cost up by customer, campaign, agent, vendor, or day. The "which client is expensive / which ' +
+    'Roll vendor cost up by customer, campaign, agent, vendor, day, or channel. The "which client is expensive / which ' +
     'vendor dominates the bill" view. Each row separates `exactRaw` from `periodRateRaw` — they are different ' +
     'claims and must never be presented as one number — and carries a single `totalRaw` only when every leg ' +
     'in the row is fully priced. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' + OWNER_NOTE + ' ' +
@@ -1059,8 +1059,8 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'gap in the data. ' +
     'Requires the Pro feature `attribution_reports`.',
     {
-      by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time']).default('customer')
-        .describe('Rollup dimension. `time` buckets by UTC calendar day.'),
+      by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time', 'channel']).default('customer')
+        .describe('Rollup dimension. `time` buckets by UTC calendar day. `channel` groups on the X-Floe-Channel tag (untagged legs count as voice or job).'),
       since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
       until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
       vendor: z.string().optional().describe('Filter to one vendor.'),
