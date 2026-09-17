@@ -956,10 +956,10 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       event: z.string().min(1).max(128).optional().describe('Filter by exact event name (no wildcards).'),
       agent_wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional().describe('Filter by agent wallet address.'),
       status: z.enum(['pending', 'success', 'failed', 'retrying']).optional().describe('Filter by delivery status.'),
-      from: z.string().optional().describe('Only deliveries at/after this ISO timestamp.'),
-      to: z.string().optional().describe('Only deliveries at/before this ISO timestamp.'),
+      from: z.string().min(1).optional().describe('Only deliveries at/after this ISO timestamp.'),
+      to: z.string().min(1).optional().describe('Only deliveries at/before this ISO timestamp.'),
       id_search: z.string().min(1).max(128).optional().describe('Match a delivery id OR correlation id (call session id, job id, loan id).'),
-      cursor: z.string().optional().describe('Opaque cursor from a previous response\'s nextCursor.'),
+      cursor: z.string().min(1).optional().describe('Opaque cursor from a previous response\'s nextCursor.'),
       limit: z.number().int().min(1).max(100).default(50).describe('Page size (default 50, max 100).'),
     },
     ({ endpoint_id, event, agent_wallet, status, from, to, id_search, cursor, limit }) =>
