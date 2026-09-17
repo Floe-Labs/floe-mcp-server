@@ -956,10 +956,10 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       event: z.string().min(1).max(128).optional().describe('Filter by exact event name (no wildcards).'),
       agent_wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional().describe('Filter by agent wallet address.'),
       status: z.enum(['pending', 'success', 'failed', 'retrying']).optional().describe('Filter by delivery status.'),
-      from: z.string().min(1).optional().describe('Only deliveries at/after this ISO timestamp.'),
-      to: z.string().min(1).optional().describe('Only deliveries at/before this ISO timestamp.'),
+      from: z.string().optional().describe('Only deliveries at/after this ISO timestamp.'),
+      to: z.string().optional().describe('Only deliveries at/before this ISO timestamp.'),
       id_search: z.string().min(1).max(128).optional().describe('Match a delivery id OR correlation id (call session id, job id, loan id).'),
-      cursor: z.string().min(1).optional().describe('Opaque cursor from a previous response\'s nextCursor.'),
+      cursor: z.string().optional().describe('Opaque cursor from a previous response\'s nextCursor.'),
       limit: z.number().int().min(1).max(100).default(50).describe('Page size (default 50, max 100).'),
     },
     ({ endpoint_id, event, agent_wallet, status, from, to, id_search, cursor, limit }) =>
@@ -1168,12 +1168,12 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'is leg resolution, NOT the Coverage Score). Both are null on cursor pages. Keyset-paginated: pass ' +
     '`nextCursor` back verbatim. Free read (`ledger_read`) — no Pro feature needed.',
     {
-      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
-      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
-      customer_id: z.string().optional().describe("Filter to one end-client tag (the agency's customer)."),
-      campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
-      agent_id: z.string().optional().describe('Filter to one agent id.'),
-      vendor: z.string().optional().describe('Tasks involving this vendor. A task renders WHOLE or not at all — this never trims a task to one vendor\'s legs.'),
+      since: z.string().min(1).optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().min(1).optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      customer_id: z.string().min(1).optional().describe("Filter to one end-client tag (the agency's customer)."),
+      campaign_id: z.string().min(1).optional().describe('Filter to one campaign tag.'),
+      agent_id: z.string().min(1).optional().describe('Filter to one agent id.'),
+      vendor: z.string().min(1).optional().describe('Tasks involving this vendor. A task renders WHOLE or not at all — this never trims a task to one vendor\'s legs.'),
       channel: z.enum(['voice', 'chat', 'email', 'video', 'job', 'sms']).optional()
         .describe('Filter to one channel. Note: a `channel` filter suppresses the range-wide `subtotals` block (it is not a leg property), rather than returning a wider figure under a narrow label.'),
       outcome: z.enum(['success', 'failure', 'partial', 'unknown']).optional()
@@ -1183,7 +1183,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       order_by: z.enum(['started', 'cost']).default('started')
         .describe('`started` = newest first (stable). `cost` = most expensive first, keyed on each task\'s currently-costed LOWER BOUND — a task whose priciest leg is still pending can rank lower than it eventually will, and the cost cursor walks a live aggregate, so use `started` for a stable full walk.'),
       limit: z.number().int().min(1).max(500).optional().describe('Max tasks, 1-500 (server default 100).'),
-      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+      cursor: z.string().min(1).optional().describe('Opaque keyset cursor from a previous page.'),
     },
     ({ since, until, customer_id, campaign_id, agent_id, vendor, channel, outcome, status, order_by, limit, cursor }) =>
       client.listInteractions({
@@ -1221,16 +1221,16 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     {
       by: z.enum(['customer', 'campaign', 'agent', 'channel', 'outcome']).default('customer')
         .describe('Rollup dimension, keyed on the TASK\'s derived attribution (not each leg\'s).'),
-      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
-      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
-      vendor: z.string().optional().describe('Filter to one vendor.'),
-      customer_id: z.string().optional().describe('Filter to one end-client tag.'),
-      campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
-      agent_id: z.string().optional().describe('Filter to one agent id.'),
+      since: z.string().min(1).optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().min(1).optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      vendor: z.string().min(1).optional().describe('Filter to one vendor.'),
+      customer_id: z.string().min(1).optional().describe('Filter to one end-client tag.'),
+      campaign_id: z.string().min(1).optional().describe('Filter to one campaign tag.'),
+      agent_id: z.string().min(1).optional().describe('Filter to one agent id.'),
       outcome: z.enum(['success', 'failure', 'partial', 'unknown']).optional().describe('Filter to one task outcome.'),
       status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
       limit: z.number().int().min(1).max(500).optional().describe('Max rows, 1-500 (server default 100).'),
-      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+      cursor: z.string().min(1).optional().describe('Opaque keyset cursor from a previous page.'),
     },
     // No `channel` FILTER here on purpose: the route 400s on it rather than
     // returning unfiltered totals under a filtered-looking request. Group BY
