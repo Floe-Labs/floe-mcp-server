@@ -25,6 +25,7 @@ const ADDED_TOOLS = [
   'open_credit_line', 'get_credit_line_bounds', 'search_floe_docs', 'check_x402_url',
   'list_vendor_cost_legs', 'list_vendor_cost_calls', 'get_vendor_cost_rollup',
   'list_reconciliation_findings', 'list_vendor_connections', 'verify_vendor_connection',
+  'list_interactions', 'get_interaction', 'get_interaction_cost_rollup',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -95,8 +96,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 80 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(80);
+  it('registers exactly 83 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(83);
   });
 
   it('does not register the removed tools', () => {
@@ -104,7 +105,7 @@ describe('tool surface', () => {
     for (const removed of REMOVED_TOOLS) expect(names).not.toContain(removed);
   });
 
-  it('registers all 46 contract-added tools', () => {
+  it('registers all 49 contract-added tools', () => {
     const names = toolNames(makeServer(DEV_KEY));
     for (const added of ADDED_TOOLS) expect(names).toContain(added);
   });
@@ -124,7 +125,7 @@ describe('tool surface', () => {
 describe('scope filtering', () => {
   it('read_only=true registers only non-mutating tools', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
-    expect(names).toHaveLength(46);
+    expect(names).toHaveLength(49);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -154,9 +155,12 @@ describe('scope filtering', () => {
 
   it('actuals is its own group, scopable off without losing observability', () => {
     const actuals = toolNames(makeServer(DEV_KEY, { features: ['actuals'] }));
-    expect(actuals).toHaveLength(6);
+    expect(actuals).toHaveLength(9);
     expect(actuals).toContain('list_vendor_cost_legs');
     expect(actuals).toContain('list_vendor_connections');
+    // The task-grain reads are the same vendor-cost lane, so scoping the
+    // spend feed off must not leave a second door into it.
+    expect(actuals).toContain('list_interactions');
 
     // The point of a ninth group: an operator can hand an agent the spend
     // feed while withholding every tool that touches a billing credential.
@@ -169,7 +173,7 @@ describe('scope filtering', () => {
 
   it('read_only keeps the actuals reads and drops the connection verify', () => {
     const names = toolNames(makeServer(DEV_KEY, { readOnly: true, features: ['actuals'] }));
-    expect(names).toHaveLength(5);
+    expect(names).toHaveLength(8);
     expect(names).not.toContain('verify_vendor_connection');
   });
 
@@ -483,6 +487,62 @@ describe('new tool wiring', () => {
     await callTool(server, 'get_coverage_score', {});
     // callTool bypasses the SDK, so no default is applied → fleet, no query.
     expect(apiCalls()[1].url).toBe(`${BASE}/v1/developer/coverage`);
+  });
+
+  it('list_interactions maps snake_case args onto the interactions query params', async () => {
+    await callTool(makeServer(DEV_KEY), 'list_interactions', {
+      customer_id: 'acme-dental', vendor: 'twilio', channel: 'voice', outcome: 'success',
+      order_by: 'cost', status: ['exact', 'pending'], limit: 25,
+    });
+    const url = new URL(apiCalls()[0].url);
+    expect(url.pathname).toBe('/v1/developer/interactions');
+    expect(url.searchParams.get('customerId')).toBe('acme-dental');
+    expect(url.searchParams.get('vendor')).toBe('twilio');
+    expect(url.searchParams.get('channel')).toBe('voice');
+    expect(url.searchParams.get('outcome')).toBe('success');
+    expect(url.searchParams.get('orderBy')).toBe('cost');
+    // The route parses `status` as a CSV and 400s on any unrecognised member.
+    expect(url.searchParams.get('status')).toBe('exact,pending');
+    expect(url.searchParams.get('limit')).toBe('25');
+  });
+
+  it('get_interaction accepts only a real int_ public id', async () => {
+    const server = makeServer(DEV_KEY);
+    // The route 400s on a malformed id, so the schema is the contract.
+    expect(parseArgs(server, 'get_interaction', { interaction_id: '42' }).success).toBe(false);
+    expect(parseArgs(server, 'get_interaction', { interaction_id: 'int_XYZ' }).success).toBe(false);
+    expect(parseArgs(server, 'get_interaction', { interaction_id: 'int_0123456789abcdef' }).success).toBe(true);
+
+    await callTool(server, 'get_interaction', { interaction_id: 'int_0123456789abcdef' });
+    expect(apiCalls()[0].url).toBe(`${BASE}/v1/developer/interactions/int_0123456789abcdef`);
+  });
+
+  it('get_interaction_cost_rollup sends `by` and refuses a channel FILTER', async () => {
+    const server = makeServer(DEV_KEY);
+    // by=channel groups BY channel; a channel FILTER is a 400 on this route,
+    // so the schema does not offer one at all.
+    expect(parseArgs(server, 'get_interaction_cost_rollup', { by: 'channel' }).success).toBe(true);
+    expect(parseArgs(server, 'get_interaction_cost_rollup', { by: 'vendor' }).success).toBe(false);
+    const parsed = parseArgs(server, 'get_interaction_cost_rollup', { channel: 'voice' });
+    expect(parsed.success && 'channel' in parsed.data).toBe(false);
+
+    await callTool(server, 'get_interaction_cost_rollup', { by: 'customer', customer_id: 'acme' });
+    const url = new URL(apiCalls()[0].url);
+    expect(url.pathname).toBe('/v1/developer/interactions/rollups');
+    expect(url.searchParams.get('by')).toBe('customer');
+    expect(url.searchParams.get('customerId')).toBe('acme');
+  });
+
+  it('the interaction tools spell out that a Floe charge is not vendor cost', () => {
+    const server = makeServer(DEV_KEY);
+    for (const name of ['list_interactions', 'get_interaction']) {
+      const description: string = server._registeredTools[name].description;
+      expect(description).toContain('floeChargeRaw');
+      expect(description).toContain('NOT zero');
+    }
+    // And that an unknown $/min is unknowable, not a lower bound to guess at.
+    expect(server._registeredTools['get_interaction_cost_rollup'].description)
+      .toContain('costPerMinuteBlockedBy');
   });
 
   it('get_funding_instructions passes the funding endpoint response through when it exists', async () => {

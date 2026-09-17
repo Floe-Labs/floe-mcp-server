@@ -16,7 +16,7 @@ budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floefinance.com) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-80 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+83 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
@@ -31,7 +31,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 |---|---|
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
-| **MCP** — hosted MCP server (80 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
+| **MCP** — hosted MCP server (83 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
 | **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
@@ -111,7 +111,7 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (80)](#tools-80) below.
+Full per-tool reference is in [Tools (83)](#tools-83) below.
 
 ---
 
@@ -309,7 +309,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (80)
+## Tools (83)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -399,7 +399,19 @@ What your **own** vendors charged you (FLO-746), reconciled against those vendor
 | `list_vendor_connections` | Your vendor **billing** credentials (masked — key material is never returned) + the connector catalog. `bestStatus` is the ceiling: a `period-rate` connector will never produce `exact` |
 | `verify_vendor_connection` | Re-check one stored credential against the vendor now. Distinguishes "revoked, re-key it" (`unauthorized`) from "the vendor is down" (`degraded`). Advisory — a pass is not a scope guarantee |
 
-Gating: the four reads need the **Pro** feature `attribution_reports`; the two connection tools need the **Agency** feature `vendor_connections` (and admin/owner for `verify_vendor_connection`).
+**By task, not by vendor.** The three tools below are the same money at the **interaction** grain: one AI task — a voice call, an SMS, or a non-call job — with every vendor leg of that task joined into one cost. That join is the unit of COGS, and it is the question no vendor dashboard can answer: Twilio sees minutes, OpenAI sees tokens, only the interaction sees a call.
+
+| Tool | Description |
+|------|-------------|
+| `list_interactions` | One row per task with duration, the vendors involved, a per-leg-kind breakdown (`byKind`) and `topKind` — the leg that dominated the cost. `order_by="cost"` is the **outlier list**. The first page also carries `distribution` (p50/p95/max per task) and `resolution` (legs bound to a task, with a named reason for each that is not) |
+| `get_interaction` | One task opened up: every leg in time order with units, capture source, status and cost, plus the identifiers they were joined on (`links` — CallSid, vendor request ids, the Floe task id). A merged id resolves to the canonical task and reports `requestedId` rather than 404-ing |
+| `get_interaction_cost_rollup` | Cost **and cost per minute** by `customer`, `campaign`, `agent`, `channel` or `outcome` — the interaction is the only grain that knows how long the work took |
+
+**Two kinds of money, never added by the agent.** The reconciled vendor figures (`exactRaw`, `periodRateRaw`, `totalRaw`) are what your *own* vendors billed you. `floeChargeRaw` is what *Floe* charged for the legs Floe carried (keyless, Floe Phone, x402) — those legs carry no vendor bill of yours. `paidRaw` is the server's own sum of the two, and is null while the vendor half is still partial. `floeChargeRaw` is `null`, not zero, when Floe carried nothing.
+
+`costPerMinuteRaw` is stated only when the cost is a real total, every task in the row has closed, and the duration is positive — otherwise it is null and `costPerMinuteBlockedBy` names why (`partial_cost` / `open_interactions` / `no_duration`). An unknown-duration $/min is unknowable, not a lower bound.
+
+Gating: `list_interactions` and `get_interaction` are **free** by-task ledger reads (`ledger_read`). The four vendor-actuals reads and `get_interaction_cost_rollup` need the **Pro** feature `attribution_reports`; the two connection tools need the **Agency** feature `vendor_connections` (and admin/owner for `verify_vendor_connection`).
 
 **Not exposed over MCP, on purpose.** Invoice **upload** is a binary PUT to a signed storage URL — no agent has a file to send. **Footing** an invoice writes `invoiced` stamps against a vendor's invoice and is not undone by re-running, so that irreversible finance action keeps a human in the loop. **Resolving a finding** is a human verdict — the API refuses the machine's own `auto_cleared` for exactly that reason. **Creating** a connection writes a sealed credential, and credentials never travel through a tool call. All four live in the dashboard and in `floe actuals`.
 

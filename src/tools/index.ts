@@ -55,6 +55,19 @@ const TOTAL_NOTE =
   '`totalBlockedBy` naming why. Never substitute zero, and never sum a page yourself — the range-wide ' +
   '`subtotals` block comes from a separate aggregate query.';
 
+// The interaction (task) grain carries TWO kinds of money that must never be
+// reported as one. A Floe-carried leg (keyless inference, Floe Phone, an x402
+// tool call) has no vendor bill of the account's — that is Floe's own COGS —
+// but the account DID pay Floe for it, so the charge rides alongside the
+// reconciled vendor figures instead of inside them.
+const TASK_MONEY_NOTE =
+  'TWO KINDS OF MONEY, NEVER ADDED BY YOU: the reconciled vendor figures (`exactRaw`, `periodRateRaw`, ' +
+  '`totalRaw`) are what the account\'s OWN vendors billed it. `floeChargeRaw` is what FLOE charged for the ' +
+  'legs Floe carried (keyless, Floe Phone, x402) — those legs carry no vendor bill of the account\'s. ' +
+  '`paidRaw` is the server\'s own sum of the two and is null while the vendor half is still partial — use ' +
+  'it, never add the halves yourself. `floeChargeRaw` is null (NOT zero) when Floe carried nothing: a task ' +
+  'with no Floe-carried leg has no such charge, and zero would read as "free".';
+
 // Capability groups for the `?features=a,b` scope param on the remote URL
 // (Supabase/Neon pattern). Every tool belongs to exactly one group; an
 // unknown feature name simply matches nothing.
@@ -1126,6 +1139,107 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         .describe('Numeric connection id from list_vendor_connections.'),
     },
     ({ connection_id }) => client.verifyVendorConnection(connection_id));
+
+  // ═══════════════════════════════════════════════════════════════════
+  // INTERACTIONS (3) — the same money as the actuals reads above, at the
+  // TASK grain: one call (or one non-call job) with every vendor leg of it
+  // joined into one row. That join is the unit of COGS, and it is the one
+  // question no vendor dashboard can answer — Twilio sees minutes, OpenAI
+  // sees tokens, only the interaction sees a call.
+  //
+  // In the `actuals` group on purpose: it is the same vendor-cost lane, so
+  // an operator scoping the spend feed off (`?features=…`) must not be left
+  // holding a second door into it.
+  //
+  // GATING differs from the actuals reads: the by-task ledger reads are FREE
+  // (`ledger_read`); only the rollups are the paid attribution feature.
+  // ═══════════════════════════════════════════════════════════════════
+
+  tool('list_interactions', { group: 'actuals', access: 'read', key: 'dev' },
+    'List recent INTERACTIONS — one row per AI task (a voice call, an SMS, or a non-call job), with every ' +
+    'vendor leg of that task joined into one cost. This is the answer to "what did this call cost us, and ' +
+    'which leg dominated it": each row carries duration, the vendors involved, a per-leg-kind breakdown ' +
+    '(`byKind`: telephony / stt / llm / tts / tool), and `topKind` naming the most expensive kind. ' +
+    'Set order_by="cost" for the OUTLIER LIST — the calls eating the margin. ' + TASK_MONEY_NOTE + ' ' +
+    TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' + TIMING_NOTE + ' ' +
+    'The first page also carries `distribution` (p50/p95/max cost per task — computed over each task\'s ' +
+    'LOWER BOUND, so when `lowerBound` is true report them as "at least", never "exactly") and ' +
+    '`resolution` (how many legs are bound to a task, with a named reason for every leg outside it — this ' +
+    'is leg resolution, NOT the Coverage Score). Both are null on cursor pages. Keyset-paginated: pass ' +
+    '`nextCursor` back verbatim. Free read (`ledger_read`) — no Pro feature needed.',
+    {
+      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      customer_id: z.string().optional().describe("Filter to one end-client tag (the agency's customer)."),
+      campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
+      agent_id: z.string().optional().describe('Filter to one agent id.'),
+      vendor: z.string().optional().describe('Tasks involving this vendor. A task renders WHOLE or not at all — this never trims a task to one vendor\'s legs.'),
+      channel: z.enum(['voice', 'chat', 'email', 'video', 'job', 'sms']).optional()
+        .describe('Filter to one channel. Note: a `channel` filter suppresses the range-wide `subtotals` block (it is not a leg property), rather than returning a wider figure under a narrow label.'),
+      outcome: z.enum(['success', 'failure', 'partial', 'unknown']).optional()
+        .describe('The task\'s derived outcome. `unknown` is a real outcome (the resolver saw disagreeing signals), not "not yet derived".'),
+      status: z.array(RECONCILIATION_STATUS).min(1).optional()
+        .describe('Tasks containing a leg in one of these reconciliation statuses.'),
+      order_by: z.enum(['started', 'cost']).default('started')
+        .describe('`started` = newest first (stable). `cost` = most expensive first, keyed on each task\'s currently-costed LOWER BOUND — a task whose priciest leg is still pending can rank lower than it eventually will, and the cost cursor walks a live aggregate, so use `started` for a stable full walk.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max tasks, 1-500 (server default 100).'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    ({ since, until, customer_id, campaign_id, agent_id, vendor, channel, outcome, status, order_by, limit, cursor }) =>
+      client.listInteractions({
+        since, until, customerId: customer_id, campaignId: campaign_id, agentId: agent_id,
+        vendor, channel, outcome, orderBy: order_by, status, limit, cursor,
+      }));
+
+  tool('get_interaction', { group: 'actuals', access: 'read', key: 'dev' },
+    'Open ONE interaction (one AI task) and show where its money went: every leg in time order with its ' +
+    'vendor, leg kind, typed units, capture source, reconciliation status and cost; the `byKind` subtotals; ' +
+    'and the identifiers the legs were joined on (`links` — CallSid, vendor request ids, the Floe task id). ' +
+    'Use after list_interactions to explain an expensive call leg by leg. ' + TASK_MONEY_NOTE + ' ' +
+    'A Floe-carried leg\'s `costRaw` is null ON PURPOSE and is not a missing cost: one Floe charge can pay ' +
+    'for several legs, so it is reported once for the whole task as `floeChargeRaw` and can never be split ' +
+    'per leg. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' +
+    'If the id you pass was MERGED into another task, this returns the canonical task with `requestedId` ' +
+    'set to what you asked for — a saved id never 404s just because the resolver merged it. Free read ' +
+    '(`ledger_read`).',
+    {
+      interaction_id: z.string().regex(/^int_[0-9a-f]{16}$/)
+        .describe('Public interaction id from list_interactions, e.g. "int_0123456789abcdef".'),
+    },
+    ({ interaction_id }) => client.getInteraction(interaction_id));
+
+  tool('get_interaction_cost_rollup', { group: 'actuals', access: 'read', key: 'dev' },
+    'Roll TASK cost up by customer, campaign, agent, channel or outcome — and, uniquely, give COST PER ' +
+    'MINUTE per row, because the interaction is the only grain that knows how long the work took. The ' +
+    '"which client is actually unprofitable at the rate we quoted" view. ' +
+    '`costPerMinuteRaw` (raw 6-decimal USDC per minute) is stated ONLY when the cost is a real total AND ' +
+    'every task in the row has closed AND the duration is positive; otherwise it is null and ' +
+    '`costPerMinuteBlockedBy` names why (`partial_cost` / `open_interactions` / `no_duration`). An ' +
+    'unknown-duration $/min is unknowable, not a lower bound — never estimate one yourself. `durationMs` ' +
+    'covers CLOSED tasks only; read it with `openInteractions`. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' +
+    OWNER_NOTE + ' Requires the Pro feature `attribution_reports`.',
+    {
+      by: z.enum(['customer', 'campaign', 'agent', 'channel', 'outcome']).default('customer')
+        .describe('Rollup dimension, keyed on the TASK\'s derived attribution (not each leg\'s).'),
+      since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
+      until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
+      vendor: z.string().optional().describe('Filter to one vendor.'),
+      customer_id: z.string().optional().describe('Filter to one end-client tag.'),
+      campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
+      agent_id: z.string().optional().describe('Filter to one agent id.'),
+      outcome: z.enum(['success', 'failure', 'partial', 'unknown']).optional().describe('Filter to one task outcome.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max rows, 1-500 (server default 100).'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    // No `channel` FILTER here on purpose: the route 400s on it rather than
+    // returning unfiltered totals under a filtered-looking request. Group BY
+    // channel instead (by="channel").
+    ({ by, since, until, vendor, customer_id, campaign_id, agent_id, outcome, status, limit, cursor }) =>
+      client.getInteractionRollup(by, {
+        since, until, vendor, customerId: customer_id, campaignId: campaign_id,
+        agentId: agent_id, outcome, status, limit, cursor,
+      }));
 
   // ═══════════════════════════════════════════════════════════════════
   // DOCS (1) — Stripe pattern: the agent should not need a second MCP

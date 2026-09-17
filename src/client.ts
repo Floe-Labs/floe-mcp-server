@@ -420,6 +420,34 @@ export class FloeApiClient {
     const q = qs.toString();
     return this.get(`/v1/developer/actuals/findings${q ? '?' + q : ''}`);
   }
+  // ── Interactions (the TASK grain) ─────────────────────────────────
+  // An interaction is one AI task — a call, or a non-call job — with every
+  // vendor leg of that task joined into one row. Same filter vocabulary as
+  // the actuals reads (so `actualsQuery` is reused rather than re-spelled),
+  // plus the three that only exist at this grain: channel, outcome, orderBy.
+  listInteractions(params?: VendorActualsQuery & {
+    channel?: string;
+    outcome?: string;
+    orderBy?: 'started' | 'cost';
+  }) {
+    const q = this.actualsQuery(params);
+    const extra = new URLSearchParams();
+    if (params?.channel) extra.set('channel', params.channel);
+    if (params?.outcome) extra.set('outcome', params.outcome);
+    if (params?.orderBy) extra.set('orderBy', params.orderBy);
+    const tail = extra.toString();
+    return this.get(`/v1/developer/interactions${q}${tail ? (q ? '&' : '?') + tail : ''}`);
+  }
+  getInteraction(publicId: string) {
+    return this.get(`/v1/developer/interactions/${encodeURIComponent(publicId)}`);
+  }
+  getInteractionRollup(by: string, params?: VendorActualsQuery & { outcome?: string }) {
+    const q = this.actualsQuery(params);
+    const extra = new URLSearchParams({ by });
+    if (params?.outcome) extra.set('outcome', params.outcome);
+    return this.get(`/v1/developer/interactions/rollups${q ? `${q}&` : '?'}${extra}`);
+  }
+
   listVendorConnections() { return this.get('/v1/developer/vendor-connections'); }
   verifyVendorConnection(connectionId: number) {
     return this.post(`/v1/developer/vendor-connections/${connectionId}/verify`, {});
