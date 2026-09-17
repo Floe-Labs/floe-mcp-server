@@ -106,6 +106,7 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Funding & observability** | `get_funding_instructions`, `get_balances`, `get_activity`, `get_usage_summary`, `get_coverage_score` | fund agents + watch the fleet spend + measure enforcement coverage |
 | **Webhooks** | `create_webhook`, `list_webhooks`, `list_webhook_events`, `get_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `rotate_webhook_secret`, `list_webhook_deliveries`, `get_webhook_delivery`, `retry_webhook_delivery` | push notifications for account events + the delivery log |
 | **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection` | what your OWN vendors charged you, reconciled against their billing records |
+| **Interactions (by task)** | `list_interactions`, `get_interaction`, `get_interaction_cost_rollup` | the same money at the TASK grain — one call/SMS/job with every vendor leg joined, plus cost per minute |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
