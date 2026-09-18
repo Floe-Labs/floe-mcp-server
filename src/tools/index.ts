@@ -1064,7 +1064,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       }));
 
   tool('get_vendor_cost_rollup', { group: 'actuals', access: 'read', key: 'dev' },
-    'Roll vendor cost up by customer, campaign, agent, vendor, day, or channel. The "which client is expensive / which ' +
+    'Roll vendor cost up by customer, campaign, agent, vendor, day, channel, or task_type. The "which client is expensive / which ' +
     'vendor dominates the bill" view. Each row separates `exactRaw` from `periodRateRaw` — they are different ' +
     'claims and must never be presented as one number — and carries a single `totalRaw` only when every leg ' +
     'in the row is fully priced. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' + OWNER_NOTE + ' ' +
@@ -1072,7 +1072,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'gap in the data. ' +
     'Requires the Pro feature `attribution_reports`.',
     {
-      by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time', 'channel']).default('customer')
+      by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time', 'channel', 'task_type']).default('customer')
         .describe('Rollup dimension. `time` buckets by UTC calendar day. `channel` groups on the X-Floe-Channel tag (untagged legs count as voice or job).'),
       since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
       until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
@@ -1209,7 +1209,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     ({ interaction_id }) => client.getInteraction(interaction_id));
 
   tool('get_interaction_cost_rollup', { group: 'actuals', access: 'read', key: 'dev' },
-    'Roll TASK cost up by customer, campaign, agent, channel or outcome — and, uniquely, give COST PER ' +
+    'Roll TASK cost up by customer, campaign, agent, channel, outcome or task_type — and, uniquely, give COST PER ' +
     'MINUTE per row, because the interaction is the only grain that knows how long the work took. The ' +
     '"which client is actually unprofitable at the rate we quoted" view. ' +
     '`costPerMinuteRaw` (raw 6-decimal USDC per minute) is stated ONLY when the cost is a real total AND ' +
@@ -1219,7 +1219,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'covers CLOSED tasks only; read it with `openInteractions`. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' +
     OWNER_NOTE + ' Requires the Pro feature `attribution_reports`.',
     {
-      by: z.enum(['customer', 'campaign', 'agent', 'channel', 'outcome']).default('customer')
+      by: z.enum(['customer', 'campaign', 'agent', 'channel', 'outcome', 'task_type']).default('customer')
         .describe('Rollup dimension, keyed on the TASK\'s derived attribution (not each leg\'s).'),
       since: z.string().min(1).optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
       until: z.string().min(1).optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
