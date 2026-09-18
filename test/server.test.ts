@@ -26,6 +26,7 @@ const ADDED_TOOLS = [
   'list_vendor_cost_legs', 'list_vendor_cost_calls', 'get_vendor_cost_rollup',
   'list_reconciliation_findings', 'list_vendor_connections', 'verify_vendor_connection',
   'list_interactions', 'get_interaction', 'get_interaction_cost_rollup',
+  'list_contracts', 'get_contract',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -96,8 +97,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 83 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(83);
+  it('registers exactly 85 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(85);
   });
 
   it('does not register the removed tools', () => {
@@ -125,7 +126,7 @@ describe('tool surface', () => {
 describe('scope filtering', () => {
   it('read_only=true registers only non-mutating tools', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
-    expect(names).toHaveLength(49);
+    expect(names).toHaveLength(51);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -169,6 +170,20 @@ describe('scope filtering', () => {
     expect(observability).toContain('get_usage_summary');
     expect(observability).not.toContain('list_vendor_connections');
     expect(observability).not.toContain('list_vendor_cost_legs');
+  });
+
+  it('contracts is its own group — signed terms scope apart from vendor cost', () => {
+    // `actuals` is reconciled VENDOR cost. Contracts are what the CLIENT was
+    // promised. Folding them together would make the scope param lie: an
+    // operator must be able to expose one without the other, both ways.
+    const contracts = toolNames(makeServer(DEV_KEY, { features: ['contracts'] }));
+    expect(contracts).toHaveLength(2);
+    expect(contracts).toContain('list_contracts');
+    expect(contracts).toContain('get_contract');
+
+    const actuals = toolNames(makeServer(DEV_KEY, { features: ['actuals'] }));
+    expect(actuals).not.toContain('list_contracts');
+    expect(contracts).not.toContain('list_vendor_cost_legs');
   });
 
   it('read_only keeps the actuals reads and drops the connection verify', () => {

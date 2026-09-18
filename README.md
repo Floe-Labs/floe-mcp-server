@@ -89,7 +89,7 @@ https://mcp.floelabs.xyz/mcp?read_only=true          # only non-mutating tools
 https://mcp.floelabs.xyz/mcp?features=spend,pricing  # only the named capability groups
 ```
 
-Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `actuals`, `docs`.
+Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `actuals`, `contracts`, `docs`.
 Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 
 → [Local stdio, global install, and key taxonomy below](#install-options)
@@ -107,12 +107,13 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Webhooks** | `create_webhook`, `list_webhooks`, `list_webhook_events`, `get_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `rotate_webhook_secret`, `list_webhook_deliveries`, `get_webhook_delivery`, `retry_webhook_delivery` | push notifications for account events + the delivery log |
 | **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection` | what your OWN vendors charged you, reconciled against their billing records |
 | **Interactions (by task)** | `list_interactions`, `get_interaction`, `get_interaction_cost_rollup` | the same money at the TASK grain — one call/SMS/job with every vendor leg joined, plus cost per minute |
+| **Contracts (signed)** | `list_contracts`, `get_contract` | what you SIGNED per client — terms, commitment progress, and the drift from what the rate card is actually rating |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (83)](#tools-83) below.
+Full per-tool reference is in [Tools (85)](#tools-85) below.
 
 ---
 
@@ -310,7 +311,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (83)
+## Tools (85)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -415,6 +416,25 @@ What your **own** vendors charged you (FLO-746), reconciled against those vendor
 Gating: `list_interactions` and `get_interaction` are **free** by-task ledger reads (`ledger_read`). The four vendor-actuals reads and `get_interaction_cost_rollup` need the **Pro** feature `attribution_reports`; the two connection tools need the **Agency** feature `vendor_connections` (and admin/owner for `verify_vendor_connection`).
 
 **Not exposed over MCP, on purpose.** Invoice **upload** is a binary PUT to a signed storage URL — no agent has a file to send. **Footing** an invoice writes `invoiced` stamps against a vendor's invoice and is not undone by re-running, so that irreversible finance action keeps a human in the loop. **Resolving a finding** is a human verdict — the API refuses the machine's own `auto_cleared` for exactly that reason. **Creating** a connection writes a sealed credential, and credentials never travel through a tool call. All four live in the dashboard and in `floe actuals`.
+
+### Contracts (`contracts`) — developer key
+
+**What you signed, not what you spent.** `actuals` is what your *vendors* charged you; this is what your *client* agreed to pay. They are separate capability groups on purpose, so an operator can hand over one without the other — commercial terms and vendor costs are sensitive in different directions.
+
+| Tool | Description |
+|------|-------------|
+| `list_contracts` | The contract book, newest term first: term dates, committed volume, the rate-card version pinned as signed, and `consumed` — commitment progress counted in the contract's own unit. `needsRenewalCount` is the number of terms that ran out with no successor |
+| `get_contract` | One contract by id. A contract on another account answers **404, not 403**, so the endpoint never confirms that an id exists elsewhere. Does not carry `consumed` — use `list_contracts` for commitment progress |
+
+**`status` and `state` answer different questions.** `status` is the stored human act — `active` or `cancelled`, and **never** `expired`. `state` is what the contract is *right now* (`scheduled` / `active` / `expired` / `cancelled`), derived from the term and the clock on every read. A term that ran out last month still reads `status=active`, so judge live-ness by `state`. Expiry is derived rather than stored precisely so that no background job can quietly stop running and leave a finished term looking live.
+
+**A contract lapses; it never auto-renews.** When a term ends, usage keeps being rated by the rate card — billing never silently stops — but the contract surfaces in `needsRenewalCount` instead of renewing itself. The system does not commit an agency to terms nobody agreed to.
+
+**`consumed` may be a floor, and says so.** It is counted in the **contract's** unit, independently of what the rate card meters — a client can commit to 10,000 `task` while the card bills per `audio_minute`, and that is still measurable because the ledger carries every one of those quantities. When `isLowerBound` is true, metered requests carried no task id, so the count is a FLOOR: report "at least X of N", never a bare "X of N", or you will tell a client they are behind a commitment they may already have met. `consumed: null` means it was not computed — unknown, never zero.
+
+**Signing and cancelling are not exposed over MCP, on purpose.** Committing an agency to a term, or ending one early, is a commercial decision with a counterparty — the same reason invoice footing and finding resolution stay out of the tool surface. Both live in the dashboard.
+
+Gating: both reads need the **Pro** feature `attribution_reports`.
 
 ### Docs (`docs`) — keyless
 
