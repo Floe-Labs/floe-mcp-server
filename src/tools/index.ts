@@ -80,6 +80,7 @@ export const FEATURE_GROUPS = [
   'payments',       // x402_pay — the actual paid call
   'webhooks',       // developer webhook CRUD/test
   'actuals',        // reconciled VENDOR cost + the billing connections behind it
+  'contracts',      // what you SIGNED per client — the revenue mirror of `actuals`
   'docs',           // search_floe_docs
 ] as const;
 export type FeatureGroup = (typeof FEATURE_GROUPS)[number];
@@ -1240,6 +1241,49 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         since, until, vendor, customerId: customer_id, campaignId: campaign_id,
         agentId: agent_id, outcome, status, limit, cursor,
       }));
+
+  // ═══════════════════════════════════════════════════════════════════
+  // CONTRACTS (2) — what you SIGNED, the revenue mirror of `actuals`.
+  //
+  // Its OWN group, not folded into `actuals`: that group is reconciled
+  // VENDOR cost, and filing signed commercial terms under it would make the
+  // `?features=` scope lie. Separating them lets an operator expose what a
+  // client was promised without exposing what the vendors charged, and the
+  // other way round.
+  // ═══════════════════════════════════════════════════════════════════
+
+  tool('list_contracts', { group: 'contracts', access: 'read', key: 'dev' },
+    'The contract book: what you SIGNED per client, newest term first. The mirror of a rate card — a rate ' +
+    'card is what is CURRENTLY RATING, a contract is what was agreed, and the drift between them is the ' +
+    'whole "signed vs deployed" question. ' +
+    'READ `status` AND `state` DIFFERENTLY: `status` is the stored human act (`active` / `cancelled`) and is ' +
+    'NEVER `expired`; `state` is what the contract IS right now (`scheduled` / `active` / `expired` / ' +
+    '`cancelled`), derived from the term and the clock. A term that has run out still reads `status=active`, ' +
+    'so judge live-ness by `state`. `needsRenewalCount` counts terms that ended with nothing signed to ' +
+    'succeed them — a contract lapses rather than auto-renewing, so nothing invents terms on your behalf. ' +
+    '`consumed` is how much of the commitment has been used, counted in the CONTRACT\'s own unit and ' +
+    'independently of what the rate card meters. When `consumed.isLowerBound` is true the figure is a FLOOR, ' +
+    'not a total (metered requests carried no task id) — say "at least X of N", never a bare "X of N", or ' +
+    'you will tell a client they are behind a commitment they may already have met. `consumed: null` means ' +
+    'it was not computed: report it as unknown, never as zero. Requires the Pro feature `attribution_reports`.',
+    {
+      customer_id: z.string().min(1).optional()
+        .describe('Narrow to one end-client tag. Omit for the whole book.'),
+    },
+    ({ customer_id }) => client.listContracts(customer_id));
+
+  tool('get_contract', { group: 'contracts', access: 'read', key: 'dev' },
+    'One signed contract by id. Same `status` vs `state` distinction as list_contracts: `status` is the ' +
+    'stored act and is never `expired`; `state` combines it with the clock. `signedRateCardVersion` pins the ' +
+    'as-signed rate card BY VERSION rather than as a scalar rate — rate cards are append-only, so the ' +
+    'reference reproduces the signed pricing exactly and forever, and comparing it with the version ' +
+    'currently rating is what surfaces pricing drift. A contract on another account answers 404, not 403. ' +
+    'The per-contract read does NOT carry `consumed` — use list_contracts for commitment progress. ' +
+    'Requires the Pro feature `attribution_reports`.',
+    {
+      contract_id: z.number().int().min(1).describe('Numeric contract id (from list_contracts).'),
+    },
+    ({ contract_id }) => client.getContract(contract_id));
 
   // ═══════════════════════════════════════════════════════════════════
   // DOCS (1) — Stripe pattern: the agent should not need a second MCP

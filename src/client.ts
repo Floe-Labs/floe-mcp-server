@@ -316,6 +316,17 @@ export class FloeApiClient {
       : '/v1/developer/coverage';
     return this.get(`${base}${q ? '?' + q : ''}`);
   }
+  // ── Contracts (P2.2) ──────────────────────────────────────────────
+  // What you SIGNED per client — the revenue mirror of the vendor-cost
+  // lane. Reads need Pro's `attribution_reports`; both live under
+  // /v1/developer/*, so both want a developer key.
+  listContracts(customerId?: string) {
+    const q = customerId ? `?customerId=${encodeURIComponent(customerId)}` : '';
+    return this.get(`/v1/developer/contracts${q}`);
+  }
+  getContract(contractId: number) {
+    return this.get(`/v1/developer/contracts/${contractId}`);
+  }
   createWebhook(body: {
     url: string;
     events: string[];
