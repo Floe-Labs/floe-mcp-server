@@ -212,7 +212,17 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
   ) => {
     if (opts.readOnly && meta.access === 'write') return;
     if (opts.features && opts.features.length > 0 && !opts.features.includes(meta.group)) return;
-    server.tool(name, `${description} ${KEY_HINT[meta.key]}`, schema, async (args: any) => {
+    server.tool(
+      name,
+      `${description} ${KEY_HINT[meta.key]}`,
+      schema,
+      // ToolAnnotations. `access` already decides local read_only filtering, so
+      // the SDK hint is DERIVED from it rather than declared a second time — a
+      // separate annotation would be one more thing to forget on the next tool,
+      // and a tool that lies about being read-only is worse than one that says
+      // nothing. Set on every tool here, not per registration, for that reason.
+      { readOnlyHint: meta.access === 'read' },
+      async (args: any) => {
       if (meta.key !== 'none' && !client.hasKey) {
         return errorResult('AUTH_REQUIRED', {
           status: 401,
