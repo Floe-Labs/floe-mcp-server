@@ -111,6 +111,24 @@ describe('tool surface', () => {
     for (const added of ADDED_TOOLS) expect(names).toContain(added);
   });
 
+  it('declares readOnlyHint on every tool, derived from its access', () => {
+    // The hint is derived from ToolMeta.access inside the shared wrapper, so
+    // nothing else asserts it: reverting to the annotation-less overload would
+    // drop it from all 85 tools at once and leave this suite green, with
+    // clients simply losing the ability to tell a read from a write.
+    const server = makeServer(DEV_KEY);
+    for (const name of toolNames(server)) {
+      const hint = server._registeredTools[name].annotations?.readOnlyHint;
+      expect(typeof hint, `${name} must declare readOnlyHint`).toBe('boolean');
+    }
+    // Spot-checks rather than a diff against WRITE_TOOLS: that list is a
+    // fixture, not the source of truth, and a tool missing from it would fail
+    // here for the wrong reason.
+    expect(server._registeredTools.get_markets.annotations?.readOnlyHint).toBe(true);
+    expect(server._registeredTools.x402_pay.annotations?.readOnlyHint).toBe(false);
+    expect(server._registeredTools.list_contracts.annotations?.readOnlyHint).toBe(true);
+  });
+
   it('declares the required key type in every description', () => {
     const server = makeServer(DEV_KEY);
     for (const name of toolNames(server)) {
