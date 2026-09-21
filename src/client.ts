@@ -209,6 +209,49 @@ export class FloeApiClient {
     return this.post('/v1/agents/outcomes', body);
   }
 
+  /**
+   * DELIBERATELY NOT `actualsQuery`, which `listInteractions` reuses.
+   *
+   * That builder emits `vendor` and `agentId`, and the outcomes route accepts
+   * neither — it would drop them, and an agent filtering by vendor would get a
+   * confidently unfiltered answer. A silently ignored filter is worse than an
+   * absent one, so this spells out exactly what the route honours.
+   */
+  private outcomesQuery(params?: {
+    since?: string; until?: string; taskId?: string; interactionId?: string;
+    customerId?: string; campaignId?: string; outcomeKind?: string;
+    status?: string[]; source?: string; limit?: number; cursor?: string;
+  }): string {
+    const qs = new URLSearchParams();
+    if (params?.since) qs.set('since', params.since);
+    if (params?.until) qs.set('until', params.until);
+    if (params?.taskId) qs.set('taskId', params.taskId);
+    if (params?.interactionId) qs.set('interactionId', params.interactionId);
+    if (params?.customerId) qs.set('customerId', params.customerId);
+    if (params?.campaignId) qs.set('campaignId', params.campaignId);
+    if (params?.outcomeKind) qs.set('outcomeKind', params.outcomeKind);
+    // The route parses `status` as a comma-separated subset and 400s on any
+    // unrecognised member, so it is joined here rather than repeated.
+    if (params?.status?.length) qs.set('status', params.status.join(','));
+    if (params?.source) qs.set('source', params.source);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    const q = qs.toString();
+    return q ? `?${q}` : '';
+  }
+
+  listOutcomes(params?: {
+    since?: string; until?: string; taskId?: string; interactionId?: string;
+    customerId?: string; campaignId?: string; outcomeKind?: string;
+    status?: string[]; source?: string; limit?: number; cursor?: string;
+  }) {
+    return this.get(`/v1/developer/outcomes${this.outcomesQuery(params)}`);
+  }
+
+  getOutcome(eventId: string) {
+    return this.get(`/v1/developer/outcomes/${encodeURIComponent(eventId)}`);
+  }
+
   // ── Merchant Allowlist ────────────────────────────────────────────
   // Opt-in, default-deny restriction on which destinations an agent may
   // pay. An allowlist entry is an ordinary capped policy row (kind='api'

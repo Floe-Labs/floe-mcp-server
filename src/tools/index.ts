@@ -1321,6 +1321,58 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       });
     });
 
+  tool('list_outcomes', { group: 'outcomes', access: 'read', key: 'dev' },
+    'Find outcome claims BY THE CALL — task, interaction, customer, campaign, kind, status, source. '
+    + 'Discovery is deliberately not by event id: an operator asking "what did this campaign produce?" does '
+    + 'not have an `oev_…` yet, and the id from an emit response or a webhook is the shortcut rather than the '
+    + 'front door. `task_id` matches through the CALL\'s task link, so a claim keyed on an orchestrator '
+    + 'CallSid is still found by the task id you know. '
+    + 'Returns CHAIN HEADS only — a corrected claim\'s predecessors are history, reachable through '
+    + '`get_outcome`; listing them here would double-count one fact. '
+    + 'UNBOUND CLAIMS ARE RETURNED with a reason rather than dropped: a claim nothing can bill still has to '
+    + 'be visible, or it is a silent hole in the number this lane produces. '
+    + 'Keyset paged — pass a previous page\'s `nextCursor` verbatim. Requires the free `ledger_read` feature.',
+    {
+      task_id: z.string().optional().describe('Claims on the call carrying this task id.'),
+      interaction_id: z.string().optional().describe('Claims bound to one call (int_… id).'),
+      customer_id: z.string().optional().describe('Claims on calls for this client.'),
+      campaign_id: z.string().optional().describe('Claims on calls in this campaign.'),
+      outcome_kind: z.string().optional().describe('One kind, e.g. meeting_booked.'),
+      status: z.array(z.enum(['reported', 'confirmed', 'disputed', 'void', 'reversed']))
+        .optional().describe('Filter to these claim statuses.'),
+      source: z.enum(['agent', 'operator', 'orchestrator', 'client', 'floe'])
+        .optional().describe('WHO asserted the claim.'),
+      since: z.string().optional().describe('ISO-8601 start; ranges key on when the outcome HAPPENED.'),
+      until: z.string().optional().describe('ISO-8601 end.'),
+      limit: z.number().int().min(1).max(500).optional().describe('Max claims, 1-500.'),
+      cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
+    },
+    (params) => client.listOutcomes({
+      taskId: params.task_id,
+      interactionId: params.interaction_id,
+      customerId: params.customer_id,
+      campaignId: params.campaign_id,
+      outcomeKind: params.outcome_kind,
+      status: params.status,
+      source: params.source,
+      since: params.since,
+      until: params.until,
+      limit: params.limit,
+      cursor: params.cursor,
+    }));
+
+  tool('get_outcome', { group: 'outcomes', access: 'read', key: 'dev' },
+    'One outcome claim by id, with the chain it belongs to. '
+    + 'A SAVED ID NEVER 404s BECAUSE IT WAS CORRECTED: naming any event in a chain answers with the CURRENT '
+    + 'head and reports `isHead`, so an id written down before a confirmation still resolves to the billable '
+    + 'claim. `predecessors` walks back through what this claim corrected, newest first. '
+    + 'Carries `assertedBy` — the key id, wallet or webhook that asserted it, frozen at write — because who '
+    + 'asserted a claim is exactly what a dispute a year later asks. Requires the free `ledger_read` feature.',
+    {
+      event_id: z.string().describe('The claim id, oev_<16 hex>. Any event in the chain resolves to its head.'),
+    },
+    ({ event_id }) => client.getOutcome(event_id));
+
   tool('list_contracts', { group: 'contracts', access: 'read', key: 'dev' },
     'The contract book: what you SIGNED per client, newest term first. The mirror of a rate card — a rate ' +
     'card is what is CURRENTLY RATING, a contract is what was agreed, and the drift between them is the ' +

@@ -27,7 +27,7 @@ const ADDED_TOOLS = [
   'list_reconciliation_findings', 'list_vendor_connections', 'verify_vendor_connection',
   'list_interactions', 'get_interaction', 'get_interaction_cost_rollup',
   'list_contracts', 'get_contract',
-  'emit_outcome',
+  'emit_outcome', 'list_outcomes', 'get_outcome',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -100,7 +100,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
   it('registers exactly 85 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(86);
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(88);
   });
 
   it('does not register the removed tools', () => {
@@ -146,7 +146,9 @@ describe('tool surface', () => {
 describe('scope filtering', () => {
   it('read_only=true registers only non-mutating tools', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
-    expect(names).toHaveLength(51);
+    // 53 since the outcomes group added two READ tools: read_only drops
+    // `emit_outcome` and keeps `list_outcomes` / `get_outcome`.
+    expect(names).toHaveLength(53);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -211,12 +213,15 @@ describe('scope filtering', () => {
     // vendor costs or signed commercial terms. Those are sensitive in
     // different directions, which is why `contracts` is separate too.
     const outcomes = toolNames(makeServer(AGENT_KEY, { features: ['outcomes'] }));
-    expect(outcomes).toHaveLength(1);
+    expect(outcomes).toHaveLength(3);
     expect(outcomes).toContain('emit_outcome');
+    expect(outcomes).toContain('list_outcomes');
+    expect(outcomes).toContain('get_outcome');
 
-    // A write tool, so read_only drops it entirely.
-    expect(toolNames(makeServer(AGENT_KEY, { readOnly: true, features: ['outcomes'] })))
-      .toHaveLength(0);
+    // emit is the only write here, so read_only drops it and keeps the reads.
+    const readOnly = toolNames(makeServer(AGENT_KEY, { readOnly: true, features: ['outcomes'] }));
+    expect(readOnly).toEqual(expect.arrayContaining(['list_outcomes', 'get_outcome']));
+    expect(readOnly).not.toContain('emit_outcome');
   });
 
   it('read_only keeps the actuals reads and drops the connection verify', () => {
