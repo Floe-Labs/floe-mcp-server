@@ -123,6 +123,12 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
     ['forecastX402', () => client.forecastX402({ items: [{ url: 'https://v.test/api' }] }),
       'POST', '/v1/x402/forecast'],
     ['proxyFetch', () => client.proxyFetch({ url: 'https://v.test/api' }), 'POST', '/v1/proxy/fetch'],
+    ['emitOutcome', () => client.emitOutcome({
+      taskId: 'call-8821', outcomeKind: 'meeting_booked', idempotencyKey: 'call-8821:meeting_booked',
+    }), 'POST', '/v1/agents/outcomes'],
+    ['listOutcomes', () => client.listOutcomes(), 'GET', '/v1/developer/outcomes'],
+    ['getOutcome', () => client.getOutcome('oev_00112233445566aa'),
+      'GET', '/v1/developer/outcomes/oev_00112233445566aa'],
   ];
 
   for (const [name, run, method, path] of cases) {
@@ -137,6 +143,67 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
     await client.checkX402Url('https://v.test/api?a=1');
     expect(last().method).toBe('GET');
     expect(last().url).toBe(`${BASE}/v1/proxy/check?url=https%3A%2F%2Fv.test%2Fapi%3Fa%3D1`);
+  });
+
+  it('emitOutcome POSTs the claim body verbatim', async () => {
+    await client.emitOutcome({
+      taskId: 'call-8821',
+      outcomeKind: 'meeting_booked',
+      idempotencyKey: 'call-8821:meeting_booked',
+      quantity: 2,
+      externalSystem: 'hubspot',
+      externalRef: 'DEAL-9',
+    });
+    expect(last().method).toBe('POST');
+    expect(JSON.parse(String(last().body))).toEqual({
+      taskId: 'call-8821',
+      outcomeKind: 'meeting_booked',
+      idempotencyKey: 'call-8821:meeting_booked',
+      quantity: 2,
+      externalSystem: 'hubspot',
+      // Stored verbatim — equality on (system, ref) is what proves two claims
+      // are one fact, so the client must not normalise it.
+      externalRef: 'DEAL-9',
+    });
+  });
+
+  it('listOutcomes serializes every filter the route honours, and nothing else', async () => {
+    await client.listOutcomes({
+      since: '2026-09-01T00:00:00Z',
+      until: '2026-09-21T00:00:00Z',
+      taskId: 'call-8821',
+      interactionId: 'int_00112233445566bb',
+      customerId: 'acme',
+      campaignId: 'q3-outbound',
+      outcomeKind: 'meeting_booked',
+      // The route parses `status` as a comma-separated subset, so it is joined
+      // here rather than repeated as multiple params.
+      status: ['reported', 'confirmed'],
+      source: 'agent',
+      limit: 25,
+      cursor: 'opaque',
+    });
+    const url = new URL(last().url);
+    expect(url.pathname).toBe('/v1/developer/outcomes');
+    expect(url.searchParams.get('taskId')).toBe('call-8821');
+    expect(url.searchParams.get('interactionId')).toBe('int_00112233445566bb');
+    expect(url.searchParams.get('customerId')).toBe('acme');
+    expect(url.searchParams.get('campaignId')).toBe('q3-outbound');
+    expect(url.searchParams.get('outcomeKind')).toBe('meeting_booked');
+    expect(url.searchParams.get('status')).toBe('reported,confirmed');
+    expect(url.searchParams.get('source')).toBe('agent');
+    expect(url.searchParams.get('limit')).toBe('25');
+    expect(url.searchParams.get('cursor')).toBe('opaque');
+    // `vendor` / `agentId` are NOT accepted by this route. The outcomes query
+    // builder is deliberately separate from actualsQuery for exactly that
+    // reason — a silently ignored filter is worse than an absent one.
+    expect(url.searchParams.has('vendor')).toBe(false);
+    expect(url.searchParams.has('agentId')).toBe(false);
+  });
+
+  it('getOutcome url-encodes the claim id it is given', async () => {
+    await client.getOutcome('oev_00112233445566aa');
+    expect(last().url).toBe(`${BASE}/v1/developer/outcomes/oev_00112233445566aa`);
   });
 
   it('listWebhookDeliveries serializes filters into the query string', async () => {
