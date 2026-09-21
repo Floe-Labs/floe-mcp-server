@@ -81,6 +81,7 @@ export const FEATURE_GROUPS = [
   'webhooks',       // developer webhook CRUD/test
   'actuals',        // reconciled VENDOR cost + the billing connections behind it
   'contracts',      // what you SIGNED per client — the revenue mirror of `actuals`
+  'outcomes',       // what a task PRODUCED — the billable claim, bound to the call
   'docs',           // search_floe_docs
 ] as const;
 export type FeatureGroup = (typeof FEATURE_GROUPS)[number];
@@ -1112,6 +1113,11 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         'unmatched_actual', 'unmatched_leg', 'units_mismatch', 'over_coverage', 'unknown_line_item',
         'bucket_reopened', 'platform_zero_cost', 'connector_stale', 'invoice_foot_variance',
         'currency_unsupported',
+        // MIRRORS `RECONCILIATION_FINDING_KINDS` in @floe/db. These four had
+        // drifted: the enum silently rejected kinds the API accepts, so a
+        // filter on them answered "invalid argument" for findings that exist.
+        'attribution_conflict', 'attribution_locked_period', 'allocation_basis_changed',
+        'outcome_claim_collision',
       ]).optional().describe('Filter to one finding kind.'),
       severity: z.enum(['info', 'warn', 'error']).optional().describe('Filter to one severity.'),
       state: z.enum(['open', 'cleared', 'all']).default('open').describe('Which findings to list.'),
@@ -1261,6 +1267,59 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
   // client was promised without exposing what the vendors charged, and the
   // other way round.
   // ═══════════════════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════
+  // OUTCOMES (P3.1) — what a task PRODUCED
+  //
+  // Its own capability group, for the reason `contracts` is: an operator can
+  // hand an agent the ability to state what happened without handing over the
+  // vendor costs or the signed commercial terms. Those are sensitive in
+  // different directions.
+  // ═══════════════════════════════════════════════════════════════════
+
+  tool('emit_outcome', { group: 'outcomes', access: 'write', key: 'agent' },
+    'Report a billable outcome for a task — a booked meeting, a qualified lead, a resolution — against the '
+    + 'task id you already have. Floe resolves that id to the call it belongs to and binds the claim there, so '
+    + 'cost and outcome sit on one row: that is what makes cost-per-outcome a number rather than an estimate. '
+    + 'NOT the per-action quality signal (status + score), which feeds the quality throttle and never reaches '
+    + 'an invoice; this one does. They share a word and nothing else. `outcome_kind` is OPAQUE to Floe '
+    + '(lowercased, <=64 chars, never interpreted) — what a kind is WORTH lives on the rate card, where money '
+    + 'meaning belongs. AN AGENT KEY MAY ONLY REPORT: confirming a claim, voiding one and resolving a '
+    + 'collision are OPERATOR acts on the developer surface, because they move money and the evidence that '
+    + 'justifies them — a CRM webhook, a calendar invitation — reaches the operator\'s backend minutes to days '
+    + 'after the call, never this process. A task id that names no call is REFUSED (404) rather than stored '
+    + 'unattached: an outcome nothing can bill is worse than no outcome, because it looks like one. Retries '
+    + 'are safe — a replay of the same `idempotency_key` is a no-op.',
+    {
+      task_id: z.string().describe('The X-Floe-Task-Id this outcome is about.'),
+      outcome_kind: z.string().describe('Opaque kind, e.g. meeting_booked. Lowercased, <=64 chars.'),
+      idempotency_key: z.string().describe('Required. A replay of the same key returns the stored claim.'),
+      quantity: z.number().int().min(1).optional()
+        .describe('Two meetings booked on one call is quantity 2 on ONE claim, not two claims.'),
+      occurred_at: z.string().optional()
+        .describe('ISO-8601, when the outcome HAPPENED. Defaults to now. Not the billing anchor.'),
+      external_system: z.string().optional().describe('Corroborating system, e.g. hubspot or google_calendar.'),
+      external_ref: z.string().optional()
+        .describe('Its id, stored VERBATIM (case-sensitive). Requires external_system.'),
+      note: z.string().optional().describe('Free text, <=500 chars.'),
+    },
+    (params) => {
+      // The server's CHECK says the same thing; failing here names the actual
+      // mistake instead of returning a constraint message.
+      if (params.external_ref && !params.external_system) {
+        throw new ToolInputError('external_ref requires external_system');
+      }
+      return client.emitOutcome({
+        taskId: params.task_id,
+        outcomeKind: params.outcome_kind,
+        idempotencyKey: params.idempotency_key,
+        quantity: params.quantity,
+        occurredAt: params.occurred_at,
+        externalSystem: params.external_system,
+        externalRef: params.external_ref,
+        note: params.note,
+      });
+    });
 
   tool('list_contracts', { group: 'contracts', access: 'read', key: 'dev' },
     'The contract book: what you SIGNED per client, newest term first. The mirror of a rate card — a rate ' +

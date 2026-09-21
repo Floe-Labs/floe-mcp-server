@@ -89,7 +89,7 @@ https://mcp.floelabs.xyz/mcp?read_only=true          # only non-mutating tools
 https://mcp.floelabs.xyz/mcp?features=spend,pricing  # only the named capability groups
 ```
 
-Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `actuals`, `contracts`, `docs`.
+Capability groups: `lending`, `spend`, `pricing`, `lifecycle`, `observability`, `payments`, `webhooks`, `actuals`, `contracts`, `outcomes`, `docs`.
 Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 
 → [Local stdio, global install, and key taxonomy below](#install-options)
@@ -108,6 +108,7 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection` | what your OWN vendors charged you, reconciled against their billing records |
 | **Interactions (by task)** | `list_interactions`, `get_interaction`, `get_interaction_cost_rollup` | the same money at the TASK grain — one call/SMS/job with every vendor leg joined, plus cost per minute |
 | **Contracts (signed)** | `list_contracts`, `get_contract` | what you SIGNED per client — terms, commitment progress, and the drift from what the rate card is actually rating |
+| **Outcomes (what a task produced)** | `emit_outcome` | report a billable outcome against a task id — Floe binds it to the call, so cost and outcome sit on one row |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |

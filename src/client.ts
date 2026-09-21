@@ -191,6 +191,24 @@ export class FloeApiClient {
     return this.post('/v1/x402/estimate', body);
   }
 
+  // ── Outcomes (agent key) ──────────────────────────────────────────
+  // What a task PRODUCED, bound to the call the task id resolves to. An
+  // agent key may REPORT a first claim and nothing else: confirming one,
+  // voiding one and resolving a collision move money, and the evidence for
+  // them lands in the operator's backend, not the agent's process.
+  emitOutcome(body: {
+    taskId: string;
+    outcomeKind: string;
+    idempotencyKey: string;
+    quantity?: number;
+    occurredAt?: string;
+    externalSystem?: string;
+    externalRef?: string;
+    note?: string;
+  }) {
+    return this.post('/v1/agents/outcomes', body);
+  }
+
   // ── Merchant Allowlist ────────────────────────────────────────────
   // Opt-in, default-deny restriction on which destinations an agent may
   // pay. An allowlist entry is an ordinary capped policy row (kind='api'

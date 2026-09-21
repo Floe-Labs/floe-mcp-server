@@ -27,6 +27,7 @@ const ADDED_TOOLS = [
   'list_reconciliation_findings', 'list_vendor_connections', 'verify_vendor_connection',
   'list_interactions', 'get_interaction', 'get_interaction_cost_rollup',
   'list_contracts', 'get_contract',
+  'emit_outcome',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -39,6 +40,7 @@ const WRITE_TOOLS = [
   'open_credit_line', 'x402_pay', 'create_webhook', 'test_webhook',
   'update_webhook', 'delete_webhook', 'rotate_webhook_secret', 'retry_webhook_delivery',
   'verify_vendor_connection',
+  'emit_outcome',
 ];
 
 interface RecordedCall {
@@ -98,7 +100,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
   it('registers exactly 85 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(85);
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(86);
   });
 
   it('does not register the removed tools', () => {
@@ -202,6 +204,19 @@ describe('scope filtering', () => {
     const actuals = toolNames(makeServer(DEV_KEY, { features: ['actuals'] }));
     expect(actuals).not.toContain('list_contracts');
     expect(contracts).not.toContain('list_vendor_cost_legs');
+  });
+
+  it('outcomes is its own group — what a task produced scopes apart from cost', () => {
+    // An operator can let an agent state WHAT HAPPENED without handing over
+    // vendor costs or signed commercial terms. Those are sensitive in
+    // different directions, which is why `contracts` is separate too.
+    const outcomes = toolNames(makeServer(AGENT_KEY, { features: ['outcomes'] }));
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes).toContain('emit_outcome');
+
+    // A write tool, so read_only drops it entirely.
+    expect(toolNames(makeServer(AGENT_KEY, { readOnly: true, features: ['outcomes'] })))
+      .toHaveLength(0);
   });
 
   it('read_only keeps the actuals reads and drops the connection verify', () => {
