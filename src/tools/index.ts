@@ -1301,8 +1301,11 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         .describe('Required. A replay of the same key returns the stored claim.'),
       quantity: z.number().int().min(1).optional()
         .describe('Two meetings booked on one call is quantity 2 on ONE claim, not two claims.'),
-      occurred_at: z.string().optional()
-        .describe('ISO-8601, when the outcome HAPPENED. Defaults to now. Not the billing anchor.'),
+      // `.datetime()` and not a looser parse: the route declares this field as
+      // z.string().datetime(), which demands RFC-3339 with a Z. Accepting
+      // "2026-09-15" here would only move the 400 one hop later.
+      occurred_at: z.string().datetime().optional()
+        .describe('ISO-8601 (RFC-3339, e.g. 2026-09-15T10:30:00Z) — when the outcome HAPPENED. Defaults to now. Not the billing anchor.'),
       external_system: z.string().min(1).max(64)
         .optional().describe('Corroborating system, e.g. hubspot or google_calendar.'),
       external_ref: z.string().min(1).max(256).optional()
