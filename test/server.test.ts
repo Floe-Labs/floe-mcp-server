@@ -99,7 +99,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 85 tools', () => {
+  it('registers exactly 88 tools', () => {
     expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(88);
   });
 
@@ -557,6 +557,75 @@ describe('new tool wiring', () => {
     // The route parses `status` as a CSV and 400s on any unrecognised member.
     expect(url.searchParams.get('status')).toBe('exact,pending');
     expect(url.searchParams.get('limit')).toBe('25');
+  });
+
+  /**
+   * THE ENUM THAT CAUSED THE DRIFT. `list_reconciliation_findings` rejected
+   * four kinds the API accepts, so filtering on any of them answered "invalid
+   * argument" for findings that genuinely exist. Pinned here because the enum
+   * is a hand-maintained mirror of RECONCILIATION_FINDING_KINDS in @floe/db,
+   * and nothing else would notice the next time it drifts.
+   */
+  it('list_reconciliation_findings accepts every finding kind and forwards it', async () => {
+    const server = makeServer(DEV_KEY);
+    const kinds = [
+      'unmatched_actual', 'unmatched_leg', 'units_mismatch', 'over_coverage', 'unknown_line_item',
+      'bucket_reopened', 'platform_zero_cost', 'connector_stale', 'invoice_foot_variance',
+      'currency_unsupported',
+      // The four that had drifted.
+      'attribution_conflict', 'attribution_locked_period', 'allocation_basis_changed',
+      'outcome_claim_collision',
+    ];
+    for (const kind of kinds) {
+      expect(parseArgs(server, 'list_reconciliation_findings', { kind }).success).toBe(true);
+    }
+    expect(parseArgs(server, 'list_reconciliation_findings', { kind: 'not_a_kind' }).success).toBe(false);
+
+    await callTool(server, 'list_reconciliation_findings', { kind: 'outcome_claim_collision' });
+    expect(new URL(apiCalls()[0].url).searchParams.get('kind')).toBe('outcome_claim_collision');
+  });
+
+  /**
+   * The route 400s on each of these, so the schema is the contract — a client
+   * should be told here rather than after a round trip.
+   */
+  it('emit_outcome constrains the fields its description promises', async () => {
+    const server = makeServer(AGENT_KEY);
+    const ok = { task_id: 'call-8821', outcome_kind: 'meeting_booked', idempotency_key: 'k1' };
+    expect(parseArgs(server, 'emit_outcome', ok).success).toBe(true);
+
+    expect(parseArgs(server, 'emit_outcome', { ...ok, outcome_kind: '' }).success).toBe(false);
+    expect(parseArgs(server, 'emit_outcome', { ...ok, outcome_kind: 'x'.repeat(65) }).success).toBe(false);
+    expect(parseArgs(server, 'emit_outcome', { ...ok, idempotency_key: '' }).success).toBe(false);
+    expect(parseArgs(server, 'emit_outcome', { ...ok, task_id: '' }).success).toBe(false);
+    expect(parseArgs(server, 'emit_outcome', { ...ok, quantity: 0 }).success).toBe(false);
+    expect(parseArgs(server, 'emit_outcome', { ...ok, note: 'n'.repeat(501) }).success).toBe(false);
+  });
+
+  it('get_outcome and list_outcomes accept only real public ids', async () => {
+    const server = makeServer(DEV_KEY);
+    expect(parseArgs(server, 'get_outcome', { event_id: '42' }).success).toBe(false);
+    expect(parseArgs(server, 'get_outcome', { event_id: 'oev_XYZ' }).success).toBe(false);
+    expect(parseArgs(server, 'get_outcome', { event_id: 'oev_00112233445566aa' }).success).toBe(true);
+
+    expect(parseArgs(server, 'list_outcomes', { interaction_id: 'nope' }).success).toBe(false);
+    expect(parseArgs(server, 'list_outcomes', { interaction_id: 'int_00112233445566bb' }).success).toBe(true);
+
+    await callTool(server, 'get_outcome', { event_id: 'oev_00112233445566aa' });
+    expect(apiCalls()[0].url).toBe(`${BASE}/v1/developer/outcomes/oev_00112233445566aa`);
+  });
+
+  it('list_outcomes forwards its filters as the route expects', async () => {
+    await callTool(makeServer(DEV_KEY), 'list_outcomes', {
+      task_id: 'call-8821', outcome_kind: 'meeting_booked',
+      status: ['reported', 'confirmed'], source: 'agent', limit: 25,
+    });
+    const url = new URL(apiCalls()[0].url);
+    expect(url.pathname).toBe('/v1/developer/outcomes');
+    expect(url.searchParams.get('taskId')).toBe('call-8821');
+    expect(url.searchParams.get('outcomeKind')).toBe('meeting_booked');
+    expect(url.searchParams.get('status')).toBe('reported,confirmed');
+    expect(url.searchParams.get('source')).toBe('agent');
   });
 
   it('get_interaction accepts only a real int_ public id', async () => {

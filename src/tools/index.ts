@@ -1291,17 +1291,23 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     + 'unattached: an outcome nothing can bill is worse than no outcome, because it looks like one. Retries '
     + 'are safe — a replay of the same `idempotency_key` is a no-op.',
     {
-      task_id: z.string().describe('The X-Floe-Task-Id this outcome is about.'),
-      outcome_kind: z.string().describe('Opaque kind, e.g. meeting_booked. Lowercased, <=64 chars.'),
-      idempotency_key: z.string().describe('Required. A replay of the same key returns the stored claim.'),
+      // The route enforces every one of these and 400s on a violation, so the
+      // schema is the contract: a client should be told here, not after a
+      // round trip that spends the caller's turn to say "min 1".
+      task_id: z.string().min(1).describe('The X-Floe-Task-Id this outcome is about.'),
+      outcome_kind: z.string().min(1).max(64)
+        .describe('Opaque kind, e.g. meeting_booked. Lowercased, <=64 chars.'),
+      idempotency_key: z.string().min(1).max(200)
+        .describe('Required. A replay of the same key returns the stored claim.'),
       quantity: z.number().int().min(1).optional()
         .describe('Two meetings booked on one call is quantity 2 on ONE claim, not two claims.'),
       occurred_at: z.string().optional()
         .describe('ISO-8601, when the outcome HAPPENED. Defaults to now. Not the billing anchor.'),
-      external_system: z.string().optional().describe('Corroborating system, e.g. hubspot or google_calendar.'),
-      external_ref: z.string().optional()
+      external_system: z.string().min(1).max(64)
+        .optional().describe('Corroborating system, e.g. hubspot or google_calendar.'),
+      external_ref: z.string().min(1).max(256).optional()
         .describe('Its id, stored VERBATIM (case-sensitive). Requires external_system.'),
-      note: z.string().optional().describe('Free text, <=500 chars.'),
+      note: z.string().max(500).optional().describe('Free text, <=500 chars.'),
     },
     (params) => {
       // The server's CHECK says the same thing; failing here names the actual
@@ -1333,11 +1339,14 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     + 'be visible, or it is a silent hole in the number this lane produces. '
     + 'Keyset paged — pass a previous page\'s `nextCursor` verbatim. Requires the free `ledger_read` feature.',
     {
-      task_id: z.string().optional().describe('Claims on the call carrying this task id.'),
-      interaction_id: z.string().optional().describe('Claims bound to one call (int_… id).'),
-      customer_id: z.string().optional().describe('Claims on calls for this client.'),
-      campaign_id: z.string().optional().describe('Claims on calls in this campaign.'),
-      outcome_kind: z.string().optional().describe('One kind, e.g. meeting_booked.'),
+      task_id: z.string().min(1).optional().describe('Claims on the call carrying this task id.'),
+      // The route 400s on a malformed id, so the schema is the contract —
+      // same rule `get_interaction` follows for its own public id.
+      interaction_id: z.string().regex(/^int_[0-9a-f]{16}$/)
+        .optional().describe('Claims bound to one call (int_… id).'),
+      customer_id: z.string().min(1).optional().describe('Claims on calls for this client.'),
+      campaign_id: z.string().min(1).optional().describe('Claims on calls in this campaign.'),
+      outcome_kind: z.string().min(1).max(64).optional().describe('One kind, e.g. meeting_booked.'),
       status: z.array(z.enum(['reported', 'confirmed', 'disputed', 'void', 'reversed']))
         .optional().describe('Filter to these claim statuses.'),
       source: z.enum(['agent', 'operator', 'orchestrator', 'client', 'floe'])
@@ -1369,7 +1378,8 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     + 'Carries `assertedBy` — the key id, wallet or webhook that asserted it, frozen at write — because who '
     + 'asserted a claim is exactly what a dispute a year later asks. Requires the free `ledger_read` feature.',
     {
-      event_id: z.string().describe('The claim id, oev_<16 hex>. Any event in the chain resolves to its head.'),
+      event_id: z.string().regex(/^oev_[0-9a-f]{16}$/)
+        .describe('The claim id, oev_<16 hex>. Any event in the chain resolves to its head.'),
     },
     ({ event_id }) => client.getOutcome(event_id));
 

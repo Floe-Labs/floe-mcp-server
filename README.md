@@ -16,7 +16,7 @@ budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floefinance.com) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-83 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+88 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
@@ -31,7 +31,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 |---|---|
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
-| **MCP** — hosted MCP server (83 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
+| **MCP** — hosted MCP server (88 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
 | **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
@@ -108,13 +108,13 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection` | what your OWN vendors charged you, reconciled against their billing records |
 | **Interactions (by task)** | `list_interactions`, `get_interaction`, `get_interaction_cost_rollup` | the same money at the TASK grain — one call/SMS/job with every vendor leg joined, plus cost per minute |
 | **Contracts (signed)** | `list_contracts`, `get_contract` | what you SIGNED per client — terms, commitment progress, and the drift from what the rate card is actually rating |
-| **Outcomes (what a task produced)** | `emit_outcome` | report a billable outcome against a task id — Floe binds it to the call, so cost and outcome sit on one row |
+| **Outcomes (what a task produced)** | `emit_outcome`, `list_outcomes`, `get_outcome` | report a billable outcome against a task id — Floe binds it to the call, so cost and outcome sit on one row — then find claims by the call |
 | **Docs** | `search_floe_docs` (keyless) | learn the Floe API without leaving MCP |
 | Wallet | `get_wallet_balance`, `get_accrued_interest` | balances + state |
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (85)](#tools-85) below.
+Full per-tool reference is in [Tools (88)](#tools-88) below.
 
 ---
 
@@ -312,7 +312,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (85)
+## Tools (88)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -436,6 +436,30 @@ Gating: `list_interactions` and `get_interaction` are **free** by-task ledger re
 **Signing and cancelling are not exposed over MCP, on purpose.** Committing an agency to a term, or ending one early, is a commercial decision with a counterparty — the same reason invoice footing and finding resolution stay out of the tool surface. Both live in the dashboard.
 
 Gating: both reads need the **Pro** feature `attribution_reports`.
+
+### Interactions (`actuals`) — developer key
+
+**The same money at the task grain.** One call, SMS or job with every vendor leg joined into one row — the grain that knows how long the work took, and therefore the only one that can state cost per minute. Registered under the `actuals` group, beside the per-leg reads above.
+
+| Tool | Description |
+|------|-------------|
+| `list_interactions` | One row per task: duration, the vendors involved, a per-leg-kind breakdown and `topKind` naming the priciest kind. `order_by="cost"` gives the outlier list — the calls eating the margin |
+| `get_interaction` | One task opened up — every leg in time order with vendor, leg kind, typed units, capture source, status and cost, plus the identifiers the legs were joined on |
+| `get_interaction_cost_rollup` | Task cost by customer, campaign, agent, channel, outcome or task type, with **cost per minute** per row |
+
+### Outcomes (`outcomes`) — agent key to emit, developer key to read
+
+**What a task produced**, bound to the call its costs are on. Joined with that call's cost, this is what makes cost-per-outcome a number rather than an estimate.
+
+| Tool | Description |
+|------|-------------|
+| `emit_outcome` | **Agent key.** Report a billable outcome against a task id; Floe resolves it to the call and binds the claim there. A task id that names no call is refused rather than stored unattached |
+| `list_outcomes` | Find claims **by the call** — task, interaction, customer, campaign, kind, status, source. Chain heads only; a claim that cannot be bound comes back with a reason rather than being dropped |
+| `get_outcome` | One claim with the chain it corrected. Naming any event in a chain answers with the current head and reports `isHead`, so an id saved before a confirmation still resolves |
+
+**An agent key may only report.** There is no `status` argument on `emit_outcome`: confirming a claim, voiding one and resolving a collision are operator acts on the developer surface, because they move money and the evidence that justifies them reaches that backend long after the call. Those three verdicts are deliberately **not** exposed over MCP.
+
+**Pricing per outcome kind is not available yet** — rate cards meter per request, per minute, per task and per call. Claims are recorded and readable now; rating them is what they are for.
 
 ### Docs (`docs`) — keyless
 
