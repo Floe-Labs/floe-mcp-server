@@ -1018,7 +1018,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
   //   - Creating a vendor connection. That writes a sealed billing
   //     credential; credentials never travel through a tool call.
   //
-  // GATING: the four reads ride the existing Pro feature `attribution_reports`.
+  // GATING: the four reads ride `attribution_reports`, which is FREE since
+    // P2.6 — cost per client is the product's core claim, and a prospect who
+    // cannot see it cannot evaluate it.
   // The two connection tools ride the Agency feature `vendor_connections`,
   // and the write half additionally needs an admin/owner role — so a Pro
   // account gets the spend feed and a 403 `plan_required` on connections.
@@ -1031,7 +1033,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'VENDORS charged it, not what Floe charged the account. Keyset-paginated: pass the returned `nextCursor` ' +
     'back verbatim. ' + STATUS_LEGEND + ' ' + TIMING_NOTE + ' ' + OWNER_NOTE + ' ' +
     'Non-USD legs are never FX-converted: costRaw is null and the vendor\'s verbatim string is in ' +
-    '`provenance.vendorCostNative`. Requires the Pro feature `attribution_reports`.',
+    '`provenance.vendorCostNative`. Requires the free `attribution_reports` feature.',
     {
       since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
       until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
@@ -1057,7 +1059,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'a `composition` count (how many legs are exact / period-rate / invoiced / pending / manual), separate ' +
     '`exactRaw` and `periodRateRaw` subtotals, and a single `totalRaw` only when the call is fully priced. ' +
     'Use this to answer "what did this call actually cost us?". ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' +
-    OWNER_NOTE + ' Requires the Pro feature `attribution_reports`.',
+    OWNER_NOTE + ' Requires the free `attribution_reports` feature.',
     {
       since: z.string().optional().describe('ISO-8601 lower bound (inclusive). Default: 30 days before `until`.'),
       until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
@@ -1082,7 +1084,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'in the row is fully priced. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' + OWNER_NOTE + ' ' +
     'COVERAGE WILL LOOK LOW ON VOICE-HEAVY ACCOUNTS at launch — a property of what vendors publish, not a ' +
     'gap in the data. ' +
-    'Requires the Pro feature `attribution_reports`.',
+    'Requires the free `attribution_reports` feature.',
     {
       by: z.enum(['customer', 'campaign', 'agent', 'vendor', 'time', 'channel', 'task_type']).default('customer')
         .describe('Rollup dimension. `time` buckets by UTC calendar day. `channel` groups on the X-Floe-Channel tag (untagged legs count as voice or job).'),
@@ -1106,7 +1108,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'connector, a non-USD record, an unexplained invoice variance. Read these before trusting a coverage ' +
     'number: they are the named reasons a total is a lower bound rather than a total. ' +
     'Findings are RESOLVED BY A PERSON, not by a tool call — the API refuses the machine verdict ' +
-    '`auto_cleared` so that "acknowledged" and "wont_fix" stay human judgments. Requires the Pro feature ' +
+    '`auto_cleared` so that "acknowledged" and "wont_fix" stay human judgments. Requires the free ' +
     '`attribution_reports`.',
     {
       kind: z.enum([
@@ -1234,7 +1236,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     '`costPerMinuteBlockedBy` names why (`partial_cost` / `open_interactions` / `no_duration`). An ' +
     'unknown-duration $/min is unknowable, not a lower bound — never estimate one yourself. `durationMs` ' +
     'covers CLOSED tasks only; read it with `openInteractions`. ' + TOTAL_NOTE + ' ' + STATUS_LEGEND + ' ' +
-    OWNER_NOTE + ' Requires the Pro feature `attribution_reports`.',
+    OWNER_NOTE + ' Requires the free `attribution_reports` feature.',
     {
       by: z.enum(['customer', 'campaign', 'agent', 'channel', 'outcome', 'task_type']).default('customer')
         .describe('Rollup dimension, keyed on the TASK\'s derived attribution (not each leg\'s).'),
@@ -1396,7 +1398,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'independently of what the rate card meters. When `consumed.isLowerBound` is true the figure is a FLOOR, ' +
     'not a total (metered requests carried no task id) — say "at least X of N", never a bare "X of N", or ' +
     'you will tell a client they are behind a commitment they may already have met. `consumed: null` means ' +
-    'it was not computed: report it as unknown, never as zero. Requires the Pro feature `attribution_reports`.',
+    'it was not computed: report it as unknown, never as zero. Requires the free `attribution_reports` feature.',
     {
       customer_id: z.string().min(1).optional()
         .describe('Narrow to one end-client tag. Omit for the whole book.'),
@@ -1410,7 +1412,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     'reference reproduces the signed pricing exactly and forever, and comparing it with the version ' +
     'currently rating is what surfaces pricing drift. A contract on another account answers 404, not 403. ' +
     'The per-contract read does NOT carry `consumed` — use list_contracts for commitment progress. ' +
-    'Requires the Pro feature `attribution_reports`.',
+    'Requires the free `attribution_reports` feature.',
     {
       contract_id: z.number().int().min(1).describe('Numeric contract id (from list_contracts).'),
     },

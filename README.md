@@ -414,7 +414,7 @@ What your **own** vendors charged you (FLO-746), reconciled against those vendor
 
 `costPerMinuteRaw` is stated only when the cost is a real total, every task in the row has closed, and the duration is positive — otherwise it is null and `costPerMinuteBlockedBy` names why (`partial_cost` / `open_interactions` / `no_duration`). An unknown-duration $/min is unknowable, not a lower bound.
 
-Gating: `list_interactions` and `get_interaction` are **free** by-task ledger reads (`ledger_read`). The four vendor-actuals reads and `get_interaction_cost_rollup` need the **Pro** feature `attribution_reports`; the two connection tools need the **Agency** feature `vendor_connections` (and admin/owner for `verify_vendor_connection`).
+Gating: `list_interactions` and `get_interaction` are **free** by-task ledger reads (`ledger_read`). The four vendor-actuals reads and `get_interaction_cost_rollup` need `attribution_reports`, which is **free** since P2.6; the two connection tools need the **Agency** feature `vendor_connections` (and admin/owner for `verify_vendor_connection`).
 
 **Not exposed over MCP, on purpose.** Invoice **upload** is a binary PUT to a signed storage URL — no agent has a file to send. **Footing** an invoice writes `invoiced` stamps against a vendor's invoice and is not undone by re-running, so that irreversible finance action keeps a human in the loop. **Resolving a finding** is a human verdict — the API refuses the machine's own `auto_cleared` for exactly that reason. **Creating** a connection writes a sealed credential, and credentials never travel through a tool call. All four live in the dashboard and in `floe actuals`.
 
@@ -435,7 +435,7 @@ Gating: `list_interactions` and `get_interaction` are **free** by-task ledger re
 
 **Signing and cancelling are not exposed over MCP, on purpose.** Committing an agency to a term, or ending one early, is a commercial decision with a counterparty — the same reason invoice footing and finding resolution stay out of the tool surface. Both live in the dashboard.
 
-Gating: both reads need the **Pro** feature `attribution_reports`.
+Gating: both reads need `attribution_reports`, which is **free** since P2.6.
 
 ### Interactions (`actuals`) — developer key
 
