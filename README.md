@@ -457,9 +457,11 @@ Gating: both reads need `attribution_reports`, which is **free** since P2.6.
 | `list_outcomes` | Find claims **by the call** — task, interaction, customer, campaign, kind, status, source. Chain heads only; a claim that cannot be bound comes back with a reason rather than being dropped |
 | `get_outcome` | One claim with the chain it corrected. Naming any event in a chain answers with the current head and reports `isHead`, so an id saved before a confirmation still resolves |
 
-**An agent key may only report.** There is no `status` argument on `emit_outcome`: confirming a claim, voiding one and resolving a collision are operator acts on the developer surface, because they move money and the evidence that justifies them reaches that backend long after the call. Those three verdicts are deliberately **not** exposed over MCP.
+**An agent key may only report.** There is no `status` argument on `emit_outcome`: confirming a claim, voiding one, reversing one and resolving a collision are operator acts on the developer surface, because they move money and the evidence that justifies them reaches that backend long after the call. Those verdicts are deliberately **not** exposed over MCP.
 
-**Pricing per outcome kind is not available yet** — rate cards meter per request, per minute, per task and per call. Claims are recorded and readable now; rating them is what they are for.
+**Why reversal stays off MCP.** Reversing a billed outcome writes a credit line onto a client's next statement. That is a human operator's decision, not something an agent should take, and it sits with rate-card writes, which MCP doesn't expose either. Operators reverse from the dashboard, the developer API (`POST /v1/developer/outcomes/{eventId}/reverse`) or the CLI (`floe outcomes reverse`).
+
+**Three kinds can be priced.** `resolution`, `meeting_booked` and `qualified_lead` are rate-card units: a confirmed claim of one of those kinds bills in the period it was confirmed in. Every other kind stays free text: recorded and readable, never billed.
 
 ### Docs (`docs`) — keyless
 

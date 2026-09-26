@@ -1286,7 +1286,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     + 'NOT the per-action quality signal (status + score), which feeds the quality throttle and never reaches '
     + 'an invoice; this one does. They share a word and nothing else. `outcome_kind` is OPAQUE to Floe '
     + '(lowercased, <=64 chars, never interpreted) — what a kind is WORTH lives on the rate card, where money '
-    + 'meaning belongs. AN AGENT KEY MAY ONLY REPORT: confirming a claim, voiding one and resolving a '
+    + 'meaning belongs. AN AGENT KEY MAY ONLY REPORT: confirming a claim, voiding one, reversing one and resolving a '
     + 'collision are OPERATOR acts on the developer surface, because they move money and the evidence that '
     + 'justifies them — a CRM webhook, a calendar invitation — reaches the operator\'s backend minutes to days '
     + 'after the call, never this process. A task id that names no call is REFUSED (404) rather than stored '
