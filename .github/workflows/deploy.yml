@@ -108,3 +108,10 @@ jobs:
           done
           echo "Live version did not match expected after restart."
           exit 1
+
+      - name: ProofRail MCP compatibility preflight (advisory)
+        continue-on-error: true
+        uses: kaattaallaa-sketch/proofrail-mcp@88741c96a0fb82d4dd6ebcf810f468b3ea8329c6 # v1
+        with:
+          target_url: https://mcp.floelabs.xyz/mcp
+          fail_on_problem: "true"
