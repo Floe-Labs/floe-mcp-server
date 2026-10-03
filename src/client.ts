@@ -388,6 +388,15 @@ export class FloeApiClient {
   getContract(contractId: number) {
     return this.get(`/v1/developer/contracts/${contractId}`);
   }
+  // ── Gateway connections (L1.1 / L1.13) ───────────────────────────
+  // A customer's own LLM gateway feed. Only its payers' settlement modes are
+  // read here; declaring modes and releasing held rows are human actions.
+  listExtGatewayConnections() {
+    return this.get('/v1/developer/ext-gateway/connections');
+  }
+  getExtGatewayHeldRows(slug: string) {
+    return this.get(`/v1/developer/ext-gateway/connections/${encodeURIComponent(slug)}/held`);
+  }
   createWebhook(body: {
     url: string;
     events: string[];

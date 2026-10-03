@@ -16,7 +16,7 @@ budgets the agent can reason about. Walletless. No crypto required.
 
 [Website](https://floefinance.com) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-88 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+90 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
 
 ---
 
@@ -31,7 +31,7 @@ One key for your agent's whole vendor bill — LLM, voice, telephony, search, da
 |---|---|
 | **Agent** — Claude Code / Cursor does the setup | paste: `Read https://dev-dashboard.floelabs.xyz/agents.md and set up Floe for this project.` |
 | **Skill** — install the Floe agent skill | `npx skills add floe-labs/agent-skills` |
-| **MCP** — hosted MCP server (88 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
+| **MCP** — hosted MCP server (90 tools) | `npx -y add-mcp https://mcp.floelabs.xyz/mcp` |
 | **CLI** — the full platform from your terminal: agents, keys, budgets, billing | `npx @floelabs/cli init` |
 | **NPM** — the SDK + `floe-agent` CLI | `npm i -g floe-agent` |
 
@@ -105,7 +105,7 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | **Merchant allowlist** | `set_allowlist_mode`, `get_allowlist_mode`, `add_allowlist_entry`, `remove_allowlist_entry`, `list_allowlist` | default-deny on which destinations the agent may pay |
 | **Funding & observability** | `get_funding_instructions`, `get_balances`, `get_activity`, `get_usage_summary`, `get_coverage_score` | fund agents + watch the fleet spend + measure enforcement coverage |
 | **Webhooks** | `create_webhook`, `list_webhooks`, `list_webhook_events`, `get_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `rotate_webhook_secret`, `list_webhook_deliveries`, `get_webhook_delivery`, `retry_webhook_delivery` | push notifications for account events + the delivery log |
-| **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection` | what your OWN vendors charged you, reconciled against their billing records |
+| **Vendor actuals** | `list_vendor_cost_legs`, `list_vendor_cost_calls`, `get_vendor_cost_rollup`, `list_reconciliation_findings`, `list_vendor_connections`, `verify_vendor_connection`, `list_gateway_settlement_modes`, `list_gateway_held_rows` | what your OWN vendors charged you, reconciled against their billing records; how each gateway payer settles |
 | **Interactions (by task)** | `list_interactions`, `get_interaction`, `get_interaction_cost_rollup` | the same money at the TASK grain — one call/SMS/job with every vendor leg joined, plus cost per minute |
 | **Contracts (signed)** | `list_contracts`, `get_contract` | what you SIGNED per client — terms, commitment progress, and the drift from what the rate card is actually rating |
 | **Outcomes (what a task produced)** | `emit_outcome`, `list_outcomes`, `get_outcome` | report a billable outcome against a task id — Floe binds it to the call, so cost and outcome sit on one row — then find claims by the call |
@@ -114,7 +114,7 @@ Both params combine. The Floe agent skill's decision loop needs `spend,pricing`.
 | Utility | `simulate_transaction`, `broadcast_transaction`, `get_transaction_status` | tx lifecycle |
 | Lending protocol (advanced) | 20+ intent / collateral / liquidation tools | crypto-native lending against deposits |
 
-Full per-tool reference is in [Tools (88)](#tools-88) below.
+Full per-tool reference is in [Tools (90)](#tools-90) below.
 
 ---
 
@@ -312,7 +312,7 @@ Each session is scoped to one agent — credit lines, spend limits, and webhooks
 
 ---
 
-## Tools (88)
+## Tools (90)
 
 Below the tools are listed by request type. The summary is in [Tools at a glance](#tools-at-a-glance) above.
 Every description also names the key it needs: **agent key** (`floe_...`), **developer key**
@@ -401,6 +401,8 @@ What your **own** vendors charged you (FLO-746), reconciled against those vendor
 | `list_reconciliation_findings` | Everything the engine could **not** reconcile — unmatched legs/actuals, unit mismatches, stale connectors, invoice variance. The named reasons a total is a lower bound |
 | `list_vendor_connections` | Your vendor **billing** credentials (masked — key material is never returned) + the connector catalog. `bestStatus` is the ceiling: a `period-rate` connector will never produce `exact` |
 | `verify_vendor_connection` | Re-check one stored credential against the vendor now. Distinguishes "revoked, re-key it" (`unauthorized`) from "the vendor is down" (`degraded`). Advisory — a pass is not a scope guarantee |
+| `list_gateway_settlement_modes` | One gateway connection's payer settlement modes: the declared ones beside the seeded defaults (each "default, unverified") |
+| `list_gateway_held_rows` | Preview a gateway connection's held rows (payer had no settlement mode; not on the ledger): by payer, and what a release would move now, with locked periods flagged. Read-only — releasing is a signed-in owner/admin person action |
 
 **By task, not by vendor.** The three tools below are the same money at the **interaction** grain: one AI task — a voice call, an SMS, or a non-call job — with every vendor leg of that task joined into one cost. That join is the unit of COGS, and it is the question no vendor dashboard can answer: Twilio sees minutes, OpenAI sees tokens, only the interaction sees a call.
 

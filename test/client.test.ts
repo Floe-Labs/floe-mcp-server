@@ -129,6 +129,10 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
     ['listOutcomes', () => client.listOutcomes(), 'GET', '/v1/developer/outcomes'],
     ['getOutcome', () => client.getOutcome('oev_00112233445566aa'),
       'GET', '/v1/developer/outcomes/oev_00112233445566aa'],
+    ['listExtGatewayConnections', () => client.listExtGatewayConnections(),
+      'GET', '/v1/developer/ext-gateway/connections'],
+    ['getExtGatewayHeldRows', () => client.getExtGatewayHeldRows('posthog'),
+      'GET', '/v1/developer/ext-gateway/connections/posthog/held'],
   ];
 
   for (const [name, run, method, path] of cases) {

@@ -28,6 +28,7 @@ const ADDED_TOOLS = [
   'list_interactions', 'get_interaction', 'get_interaction_cost_rollup',
   'list_contracts', 'get_contract',
   'emit_outcome', 'list_outcomes', 'get_outcome',
+  'list_gateway_settlement_modes', 'list_gateway_held_rows',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -99,8 +100,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 88 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(88);
+  it('registers exactly 90 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(90);
   });
 
   it('does not register the removed tools', () => {
@@ -108,7 +109,7 @@ describe('tool surface', () => {
     for (const removed of REMOVED_TOOLS) expect(names).not.toContain(removed);
   });
 
-  it('registers all 49 contract-added tools', () => {
+  it('registers all 51 contract-added tools', () => {
     const names = toolNames(makeServer(DEV_KEY));
     for (const added of ADDED_TOOLS) expect(names).toContain(added);
   });
@@ -148,7 +149,8 @@ describe('scope filtering', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
     // 53 since the outcomes group added two READ tools: read_only drops
     // `emit_outcome` and keeps `list_outcomes` / `get_outcome`.
-    expect(names).toHaveLength(53);
+    // 55 with list_gateway_settlement_modes and list_gateway_held_rows.
+    expect(names).toHaveLength(55);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
     expect(names).toContain('get_credit_remaining');
@@ -178,7 +180,7 @@ describe('scope filtering', () => {
 
   it('actuals is its own group, scopable off without losing observability', () => {
     const actuals = toolNames(makeServer(DEV_KEY, { features: ['actuals'] }));
-    expect(actuals).toHaveLength(9);
+    expect(actuals).toHaveLength(11);
     expect(actuals).toContain('list_vendor_cost_legs');
     expect(actuals).toContain('list_vendor_connections');
     // The task-grain reads are the same vendor-cost lane, so scoping the
@@ -226,8 +228,10 @@ describe('scope filtering', () => {
 
   it('read_only keeps the actuals reads and drops the connection verify', () => {
     const names = toolNames(makeServer(DEV_KEY, { readOnly: true, features: ['actuals'] }));
-    expect(names).toHaveLength(8);
+    expect(names).toHaveLength(10);
     expect(names).not.toContain('verify_vendor_connection');
+    expect(names).toContain('list_gateway_settlement_modes');
+    expect(names).toContain('list_gateway_held_rows');
   });
 
   it('never exposes invoice upload, foot, or finding resolution over MCP', () => {
@@ -672,5 +676,44 @@ describe('new tool wiring', () => {
     const { payload } = await callTool(makeServer(DEV_KEY), 'get_funding_instructions', { agent_id: '7' });
     expect(payload).toEqual({ depositAddress: '0xabc', chainId: 8453 });
     expect(apiCalls()).toHaveLength(1);
+  });
+});
+
+describe('gateway settlement modes (L1.13)', () => {
+  const DEFAULTS = [{ billedBy: 'openai', costSource: null, mode: 'invoiced', status: 'default_unverified' }];
+  const profile = (version: number, settlementModes: object[]) => ({ version, settlementModes, settlementModeDefaults: DEFAULTS });
+
+  it('list_gateway_settlement_modes returns one connection\'s declared modes beside the seeded defaults', async () => {
+    stubFetch(() => jsonRes({ connections: [
+      { slug: 'other', profile: profile(1, []) },
+      { slug: 'posthog', profile: profile(3, [{ billedBy: 'openrouter', costSource: 'gateway_computed', mode: 'bucket' }]) },
+    ] }));
+    const { payload } = await callTool(makeServer(DEV_KEY), 'list_gateway_settlement_modes', { slug: 'posthog' });
+    expect(apiCalls()[0].url).toBe(`${BASE}/v1/developer/ext-gateway/connections`);
+    expect(payload).toMatchObject({
+      slug: 'posthog', profileVersion: 3,
+      settlementModes: [{ billedBy: 'openrouter', costSource: 'gateway_computed', mode: 'bucket' }],
+      settlementModeDefaults: DEFAULTS,
+    });
+    expect(payload.note).toContain('default, unverified');
+  });
+
+  it('list_gateway_settlement_modes answers 404 connection_not_found for a slug the account does not have', async () => {
+    stubFetch(() => jsonRes({ connections: [{ slug: 'other', profile: profile(1, []) }] }));
+    const { result, payload } = await callTool(makeServer(DEV_KEY), 'list_gateway_settlement_modes', { slug: 'posthog' });
+    expect(result.isError).toBe(true);
+    expect(payload).toMatchObject({ error: 'connection_not_found', status: 404 });
+  });
+
+  it('list_gateway_held_rows passes the held preview through and says release is a person action', async () => {
+    const preview = {
+      held: [{ billedBy: 'acme', costSource: 'gateway_computed', mode: 'invoiced', releasable: true, rows: 3, cost: { micro: '4000000', display: '$4.00' }, periods: [{ period: '2026-09', locked: true }] }],
+      releasable: { rows: 3, cost: { micro: '4000000', display: '$4.00' }, periods: [{ period: '2026-09', locked: true }] },
+    };
+    stubFetch(() => jsonRes(preview));
+    const { payload } = await callTool(makeServer(DEV_KEY), 'list_gateway_held_rows', { slug: 'pos thog' });
+    expect(apiCalls()[0].url).toBe(`${BASE}/v1/developer/ext-gateway/connections/pos%20thog/held`);
+    expect(payload).toMatchObject(preview);
+    expect(payload.note).toContain('signed-in owner/admin');
   });
 });
