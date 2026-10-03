@@ -993,7 +993,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     ({ webhook_id, delivery_id }) => client.retryWebhookDelivery(webhook_id, delivery_id));
 
   // ═══════════════════════════════════════════════════════════════════
-  // VENDOR ACTUALS (6, + 1 gateway settlement-mode read) — what the account's OWN vendors charged it,
+  // VENDOR ACTUALS (6, + 2 gateway settlement-mode reads) — what the account's OWN vendors charged it,
   // reconciled against those vendors' billing records (FLO-746).
   //
   // A NINTH capability group rather than a corner of `observability`:
@@ -1189,6 +1189,23 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
           'Declaring a mode and releasing held rows are human actions (dashboard, or floe gateway declare-mode / release-held).',
       };
     });
+
+  tool('list_gateway_held_rows', { group: 'actuals', access: 'read', key: 'dev' },
+    'Preview one gateway connection\'s HELD rows: rows imported while their payer (billed_by) had no settlement ' +
+    'mode. They are stored but NOT on the ledger, so they are missing from every cost figure until released. ' +
+    '`held` groups them by payer, cost source and mode, with `releasable: true` when the payer now has a mode ' +
+    '(`mode: null` = still undeclared). The top-level `releasable` (rows, cost, periods) is what a release would ' +
+    'move now; a `locked` period\'s rows restate into the next open period. Report `cost.display` as given. ' +
+    'Read-only: releasing is a journaled action by a signed-in owner/admin person, never a key. An unknown slug ' +
+    'is 404 `connection_not_found`.',
+    {
+      slug: z.string().min(1).max(63).describe('The gateway connection slug.'),
+    },
+    async ({ slug }) => ({
+      ...(await client.getExtGatewayHeldRows(slug) as object),
+      note: 'Held rows are not on the ledger. Releasing them needs a signed-in owner/admin person (a dashboard ' +
+        'session); an API key cannot release them.',
+    }));
 
   // ═══════════════════════════════════════════════════════════════════
   // INTERACTIONS (3) — the same money as the actuals reads above, at the

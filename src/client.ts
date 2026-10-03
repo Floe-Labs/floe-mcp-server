@@ -394,6 +394,9 @@ export class FloeApiClient {
   listExtGatewayConnections() {
     return this.get('/v1/developer/ext-gateway/connections');
   }
+  getExtGatewayHeldRows(slug: string) {
+    return this.get(`/v1/developer/ext-gateway/connections/${encodeURIComponent(slug)}/held`);
+  }
   createWebhook(body: {
     url: string;
     events: string[];
