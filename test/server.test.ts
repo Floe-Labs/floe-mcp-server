@@ -28,7 +28,7 @@ const ADDED_TOOLS = [
   'list_interactions', 'get_interaction', 'get_interaction_cost_rollup',
   'list_contracts', 'get_contract',
   'emit_outcome', 'list_outcomes', 'get_outcome',
-  'list_gateway_settlement_modes', 'set_gateway_settlement_mode',
+  'list_gateway_settlement_modes',
 ];
 const WRITE_TOOLS = [
   'create_lend_intent', 'create_borrow_intent', 'create_counter_intent', 'repay_loan',
@@ -42,7 +42,6 @@ const WRITE_TOOLS = [
   'update_webhook', 'delete_webhook', 'rotate_webhook_secret', 'retry_webhook_delivery',
   'verify_vendor_connection',
   'emit_outcome',
-  'set_gateway_settlement_mode',
 ];
 
 interface RecordedCall {
@@ -101,8 +100,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tool surface', () => {
-  it('registers exactly 90 tools', () => {
-    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(90);
+  it('registers exactly 89 tools', () => {
+    expect(toolNames(makeServer(AGENT_KEY))).toHaveLength(89);
   });
 
   it('does not register the removed tools', () => {
@@ -110,7 +109,7 @@ describe('tool surface', () => {
     for (const removed of REMOVED_TOOLS) expect(names).not.toContain(removed);
   });
 
-  it('registers all 51 contract-added tools', () => {
+  it('registers all 50 contract-added tools', () => {
     const names = toolNames(makeServer(DEV_KEY));
     for (const added of ADDED_TOOLS) expect(names).toContain(added);
   });
@@ -150,7 +149,7 @@ describe('scope filtering', () => {
     const names = toolNames(makeServer(AGENT_KEY, { readOnly: true }));
     // 53 since the outcomes group added two READ tools: read_only drops
     // `emit_outcome` and keeps `list_outcomes` / `get_outcome`.
-    // 54 with list_gateway_settlement_modes (set_gateway_settlement_mode is a write).
+    // 54 with list_gateway_settlement_modes.
     expect(names).toHaveLength(54);
     for (const writeTool of WRITE_TOOLS) expect(names).not.toContain(writeTool);
     expect(names).toContain('get_markets');
@@ -181,7 +180,7 @@ describe('scope filtering', () => {
 
   it('actuals is its own group, scopable off without losing observability', () => {
     const actuals = toolNames(makeServer(DEV_KEY, { features: ['actuals'] }));
-    expect(actuals).toHaveLength(11);
+    expect(actuals).toHaveLength(10);
     expect(actuals).toContain('list_vendor_cost_legs');
     expect(actuals).toContain('list_vendor_connections');
     // The task-grain reads are the same vendor-cost lane, so scoping the
@@ -232,7 +231,6 @@ describe('scope filtering', () => {
     expect(names).toHaveLength(9);
     expect(names).not.toContain('verify_vendor_connection');
     expect(names).toContain('list_gateway_settlement_modes');
-    expect(names).not.toContain('set_gateway_settlement_mode');
   });
 
   it('never exposes invoice upload, foot, or finding resolution over MCP', () => {
@@ -704,41 +702,5 @@ describe('gateway settlement modes (L1.13)', () => {
     const { result, payload } = await callTool(makeServer(DEV_KEY), 'list_gateway_settlement_modes', { slug: 'posthog' });
     expect(result.isError).toBe(true);
     expect(payload).toMatchObject({ error: 'connection_not_found', status: 404 });
-  });
-
-  it('set_gateway_settlement_mode posts the declaration and says held rows are released with no re-upload', async () => {
-    let body: unknown;
-    vi.stubGlobal('fetch', vi.fn(async (url: any, init: any = {}) => {
-      if (String(url).includes('/profile-versions')) body = JSON.parse(init.body);
-      return jsonRes({ profile: profile(4, [{ billedBy: 'acme', mode: 'invoiced' }]) }, 201);
-    }));
-    const { payload } = await callTool(makeServer(DEV_KEY), 'set_gateway_settlement_mode', {
-      slug: 'posthog', billed_by: 'acme', cost_source: 'vendor_reported', mode: 'invoiced',
-    });
-    expect(body).toEqual({ settlementModes: [{ billedBy: 'acme', costSource: 'vendor_reported', mode: 'invoiced' }] });
-    expect(payload.profile.version).toBe(4);
-    expect(payload.note).toContain('released into the ledger');
-    expect(payload.note).toContain('no re-upload');
-  });
-
-  it('set_gateway_settlement_mode with mode null removes the declaration and omits an absent cost source', async () => {
-    let body: unknown;
-    vi.stubGlobal('fetch', vi.fn(async (url: any, init: any = {}) => {
-      if (String(url).includes('/profile-versions')) body = JSON.parse(init.body);
-      return jsonRes({ profile: profile(5, []) }, 201);
-    }));
-    const { payload } = await callTool(makeServer(DEV_KEY), 'set_gateway_settlement_mode', { slug: 'posthog', billed_by: 'acme', mode: null });
-    expect(body).toEqual({ settlementModes: [{ billedBy: 'acme', mode: null }] });
-    expect(payload.note).not.toContain('released into the ledger');
-  });
-
-  it('set_gateway_settlement_mode accepts only the three modes (or null) and the two cost sources', () => {
-    const server = makeServer(DEV_KEY);
-    const ok = { slug: 'posthog', billed_by: 'acme', mode: 'bucket' };
-    expect(parseArgs(server, 'set_gateway_settlement_mode', ok).success).toBe(true);
-    expect(parseArgs(server, 'set_gateway_settlement_mode', { ...ok, mode: null }).success).toBe(true);
-    expect(parseArgs(server, 'set_gateway_settlement_mode', { ...ok, mode: 'monthly' }).success).toBe(false);
-    expect(parseArgs(server, 'set_gateway_settlement_mode', { ...ok, cost_source: 'guess' }).success).toBe(false);
-    expect(parseArgs(server, 'set_gateway_settlement_mode', { ...ok, billed_by: '' }).success).toBe(false);
   });
 });

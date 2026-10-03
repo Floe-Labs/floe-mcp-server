@@ -131,8 +131,6 @@ describe('FloeApiClient path mapping — WS2 lifecycle tools', () => {
       'GET', '/v1/developer/outcomes/oev_00112233445566aa'],
     ['listExtGatewayConnections', () => client.listExtGatewayConnections(),
       'GET', '/v1/developer/ext-gateway/connections'],
-    ['declareSettlementModes', () => client.declareSettlementModes('pos thog', [{ billedBy: 'acme', mode: null }]),
-      'POST', '/v1/developer/ext-gateway/connections/pos%20thog/profile-versions'],
   ];
 
   for (const [name, run, method, path] of cases) {

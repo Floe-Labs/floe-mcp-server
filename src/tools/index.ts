@@ -993,7 +993,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     ({ webhook_id, delivery_id }) => client.retryWebhookDelivery(webhook_id, delivery_id));
 
   // ═══════════════════════════════════════════════════════════════════
-  // VENDOR ACTUALS (6, + 2 gateway settlement-mode tools) — what the account's OWN vendors charged it,
+  // VENDOR ACTUALS (6, + 1 gateway settlement-mode read) — what the account's OWN vendors charged it,
   // reconciled against those vendors' billing records (FLO-746).
   //
   // A NINTH capability group rather than a corner of `observability`:
@@ -1161,8 +1161,9 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
 
   // ── Gateway settlement modes (L1.13) ──────────────────────────────
   // How each payer (billed_by) on a gateway connection settles. A payer with
-  // no mode imports QUARANTINED (off the ledger); declaring it releases those
-  // rows. Connections, imports and field remaps stay human (dashboard / CLI).
+  // no mode imports QUARANTINED (off the ledger) until a mode is declared AND
+  // an owner/admin person releases the held rows. Read-only here: declaring a
+  // mode and releasing held rows stay human (dashboard / CLI).
   tool('list_gateway_settlement_modes', { group: 'actuals', access: 'read', key: 'dev' },
     'The settlement modes of one gateway connection\'s payers (billed_by): `settlementModes` are the account\'s ' +
     'declarations, `settlementModeDefaults` the seeded ones, each "default, unverified" until a declaration ' +
@@ -1185,30 +1186,8 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         settlementModes: conn.profile.settlementModes ?? [],
         settlementModeDefaults: conn.profile.settlementModeDefaults ?? [],
         note: 'A declaration replaces the default for its payer; defaults are "default, unverified". ' +
-          'Change one with set_gateway_settlement_mode.',
+          'Declaring a mode and releasing held rows are human actions (dashboard, or floe gateway declare-mode / release-held).',
       };
-    });
-
-  tool('set_gateway_settlement_mode', { group: 'actuals', access: 'write', key: 'dev' },
-    'Declare, flip or remove (mode null) how one payer (billed_by) on a gateway connection settles. Writes ' +
-    'the connection\'s next profile version. Declaring a mode RELEASES that payer\'s quarantined rows into the ' +
-    'ledger with no re-upload (a locked month\'s through a restatement in the next open period), and a mode ' +
-    'applies to rows already imported, so this changes ledger numbers and the close clock. The response is ' +
-    'the new profile version; it does not count the released rows. Admin/owner role.',
-    {
-      slug: z.string().min(1).max(63).describe('The gateway connection slug.'),
-      billed_by: z.string().trim().min(1).max(64).describe('The payer, as the rows name it (lowercased by the server).'),
-      cost_source: z.enum(['vendor_reported', 'gateway_computed']).optional()
-        .describe('Narrow to rows priced by the vendor (vendor_reported) or by the gateway (gateway_computed). Omit for either.'),
-      mode: z.enum(['invoiced', 'bucket', 'final_at_settlement']).nullable()
-        .describe('The settlement mode, or null to remove the declaration.'),
-    },
-    async ({ slug, billed_by, cost_source, mode }) => {
-      const res = await client.declareSettlementModes(slug, [{ billedBy: billed_by, ...(cost_source ? { costSource: cost_source } : {}), mode }]);
-      const note = mode === null
-        ? `Removed the declaration for ${billed_by}. A seeded default applies if one covers it; otherwise its new rows import held off the ledger.`
-        : `Rows held for ${billed_by} because it had no settlement mode are released into the ledger now, with no re-upload. The response does not count them.`;
-      return { ...(res as object), note };
     });
 
   // ═══════════════════════════════════════════════════════════════════
