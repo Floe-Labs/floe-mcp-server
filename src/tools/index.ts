@@ -993,7 +993,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
     ({ webhook_id, delivery_id }) => client.retryWebhookDelivery(webhook_id, delivery_id));
 
   // ═══════════════════════════════════════════════════════════════════
-  // VENDOR ACTUALS (6) — what the account's OWN vendors charged it,
+  // VENDOR ACTUALS (6, + 2 gateway settlement-mode reads) — what the account's OWN vendors charged it,
   // reconciled against those vendors' billing records (FLO-746).
   //
   // A NINTH capability group rather than a corner of `observability`:
@@ -1158,6 +1158,54 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         .describe('Numeric connection id from list_vendor_connections.'),
     },
     ({ connection_id }) => client.verifyVendorConnection(connection_id));
+
+  // ── Gateway settlement modes (L1.13) ──────────────────────────────
+  // How each payer (billed_by) on a gateway connection settles. A payer with
+  // no mode imports QUARANTINED (off the ledger) until a mode is declared AND
+  // an owner/admin person releases the held rows. Read-only here: declaring a
+  // mode and releasing held rows stay human (dashboard / CLI).
+  tool('list_gateway_settlement_modes', { group: 'actuals', access: 'read', key: 'dev' },
+    'The settlement modes of one gateway connection\'s payers (billed_by): `settlementModes` are the account\'s ' +
+    'declarations, `settlementModeDefaults` the seeded ones, each "default, unverified" until a declaration ' +
+    'replaces it. Modes: `invoiced` (the vendor invoices it; the close waits for the invoice), `bucket` (a ' +
+    'monthly summary or prepaid pool tie-out), `final_at_settlement` (final when Floe settles the day). ' +
+    '`costSource` null or absent = either source. A payer with neither a declaration nor a default imports ' +
+    'held off the ledger. An unknown slug is 404 `connection_not_found`.',
+    {
+      slug: z.string().min(1).max(63).describe('The gateway connection slug.'),
+    },
+    async ({ slug }) => {
+      const { connections } = await client.listExtGatewayConnections() as {
+        connections: Array<{ slug: string; profile: { version: number; settlementModes?: unknown[]; settlementModeDefaults?: unknown[] } }>;
+      };
+      const conn = connections.find((c) => c.slug === slug);
+      if (!conn) throw new ApiError(404, 'connection_not_found', `No gateway connection "${slug}" on this account.`);
+      return {
+        slug: conn.slug,
+        profileVersion: conn.profile.version,
+        settlementModes: conn.profile.settlementModes ?? [],
+        settlementModeDefaults: conn.profile.settlementModeDefaults ?? [],
+        note: 'A declaration replaces the default for its payer; defaults are "default, unverified". ' +
+          'Declaring a mode and releasing held rows are human actions (dashboard, or floe gateway declare-mode / release-held).',
+      };
+    });
+
+  tool('list_gateway_held_rows', { group: 'actuals', access: 'read', key: 'dev' },
+    'Preview one gateway connection\'s HELD rows: rows imported while their payer (billed_by) had no settlement ' +
+    'mode. They are stored but NOT on the ledger, so they are missing from every cost figure until released. ' +
+    '`held` groups them by payer, cost source and mode, with `releasable: true` when the payer now has a mode ' +
+    '(`mode: null` = still undeclared). The top-level `releasable` (rows, cost, periods) is what a release would ' +
+    'move now; a `locked` period\'s rows restate into the next open period. Report `cost.display` as given. ' +
+    'Read-only: releasing is a journaled action by a signed-in owner/admin person, never a key. An unknown slug ' +
+    'is 404 `connection_not_found`.',
+    {
+      slug: z.string().min(1).max(63).describe('The gateway connection slug.'),
+    },
+    async ({ slug }) => ({
+      ...(await client.getExtGatewayHeldRows(slug) as object),
+      note: 'Held rows are not on the ledger. Releasing them needs a signed-in owner/admin person (a dashboard ' +
+        'session); an API key cannot release them.',
+    }));
 
   // ═══════════════════════════════════════════════════════════════════
   // INTERACTIONS (3) — the same money as the actuals reads above, at the
