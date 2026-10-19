@@ -6,22 +6,24 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org/address/0x17946cD3e180f82e632805e5549EC913330Bb175)
 
-**Floe over MCP — know what every AI call really costs.** Floe costs each call the moment
-it ends across every vendor — telephony, STT, LLM, TTS, tools — on one ledger, ties the spend
-to the client and campaign, and shows your margin per contract, so you can bill your own
-customers off those actuals. This server puts that layer in your MCP client: give Claude
-Desktop, Claude Code, Cursor, CrewAI, or any MCP client one key for every voice tool and model
-a voice agent uses — **STT, TTS, LLM, telephony** — plus 2,000+ vendor API services, with
-budgets the agent can reason about. Walletless. No crypto required.
+**Floe — trusted settlement for task-based AI.** Your AI vendor counts resolutions, then sends an
+invoice. Floe reconciles every AI task or outcome you are billed for (Fin, Zendesk, Salesforce,
+HubSpot, Sierra, …) against your own tickets, helpdesk and CRM, and codes each one under the
+[Cleared Work Taxonomy](https://www.floefinance.com/taxonomy) — accept, credit, unbilled, dispute,
+renewal lever — so finance knows which outcomes counted before the QBR, the CFO or the renewal
+asks. For finance and procurement teams buying AI priced per task or outcome, and for AI vendors
+who want cleared work on their invoices. Priced as a contingency audit (20% of recovered credits;
+nothing found, nothing owed) or a fixed per-vendor fee; one vendor, 30 days, read-only.
+[floefinance.com/aibuyers →](https://www.floefinance.com/aibuyers)
 
-[Website](https://floefinance.com) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
+[Website](https://www.floefinance.com) · [Taxonomy](https://www.floefinance.com/taxonomy) · [Docs](https://floe-labs.gitbook.io/docs) · [Dashboard](https://dev-dashboard.floelabs.xyz) · [𝕏 @FloeLabs](https://x.com/FloeLabs)
 
-88 tools covering the full agent lifecycle — create agents, mint/rotate keys, set budgets, estimate costs, and **execute x402 payments** — with transport-aware auth (remote HTTP uses a Bearer token; local stdio reads `FLOE_API_KEY` from the env) and a **keyless tier** (`get_markets`, `check_x402_url`, `search_floe_docs` work with no key at all).
+> **About this package.** The tools below are the MCP surface of Floe's earlier agent-billing
+> platform (agent keys, budgets, cost estimates, vendor actuals). They still work against that
+> API. The reconciliation audit above is delivered through the dashboard and the Floe team, not
+> through these tools yet.
 
 ---
-
-> **Start free.** A **$3 Welcome Credit (300 API credits)** on signup — no card, no wallet.
-> [Get an agent key →](https://dev-dashboard.floelabs.xyz)
 
 ## Start building with Floe
 

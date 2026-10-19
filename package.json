@@ -1,8 +1,8 @@
 {
   "name": "@floelabs/mcp-server",
   "mcpName": "io.github.floe-labs/payments",
-  "version": "0.4.0",
-  "description": "Unified billing ledger for voice AI — one key for every voice tool and model, budget-capped.",
+  "version": "0.4.1",
+  "description": "MCP server for Floe — trusted settlement for task-based AI: reconcile per-task and per-outcome AI vendor invoices against your own records.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -27,17 +27,19 @@
   "keywords": [
     "mcp",
     "floe",
-    "defi",
-    "lending",
+    "model-context-protocol",
     "ai-agent",
-    "model-context-protocol"
+    "reconciliation",
+    "outcome-based-pricing",
+    "invoice",
+    "acceptance-statement"
   ],
   "author": "Floe Labs",
   "repository": {
     "type": "git",
     "url": "https://github.com/Floe-Labs/floe-mcp-server"
   },
-  "homepage": "https://floefinance.com",
+  "homepage": "https://www.floefinance.com/aibuyers",
   "bugs": {
     "url": "https://github.com/Floe-Labs/floe-mcp-server/issues"
   },
