@@ -44,7 +44,7 @@
     "url": "https://github.com/Floe-Labs/floe-mcp-server/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.23.4"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
