@@ -799,7 +799,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       // The backend validates ?type= against this exact set and 400s on
       // anything else, so the enum is the contract — not a free string.
       // Multiple types are sent as a CSV, which is what the route parses.
-      type: z.array(ACTIVITY_EVENT_TYPE).min(1).optional()
+      type: z.array(ACTIVITY_EVENT_TYPE).min(1).max(20).optional()
         .describe('Filter to these activity types. Omit for all.'),
       limit: z.number().int().min(1).max(100).optional().describe('Max results, 1-100 (server default 50).'),
       since: z.string().optional().describe('ISO-8601 lower bound.'),
@@ -860,7 +860,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
         .optional()
         .describe('HTTP method (default GET).'),
-      headers: z.record(z.string()).optional().describe('Extra request headers to forward to the vendor (payment/framing headers are stripped server-side).'),
+      headers: z.record(z.string(), z.string()).optional().describe('Extra request headers to forward to the vendor (payment/framing headers are stripped server-side).'),
       body: z.string().optional().describe('Raw request body string (JSON-encode it yourself for JSON APIs).'),
       idempotency_key: z.string().min(1).max(255).optional().describe('Idempotency key: a replayed call returns the cached response instead of paying again (FLO-548).'),
     },
@@ -880,7 +880,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       url: z.string().url().max(2048)
         .refine((value) => /^https:\/\//i.test(value), 'URL must use https://')
         .describe('HTTPS endpoint to deliver events to.'),
-      events: z.array(z.string().min(1)).min(1).describe('Event names to subscribe to — exact names, "*", or prefix wildcards like "call.*" (validated server-side; see list_webhook_events).'),
+      events: z.array(z.string().min(1)).min(1).max(50).describe('Event names to subscribe to — exact names, "*", or prefix wildcards like "call.*" (validated server-side; see list_webhook_events).'),
       scope: z.enum(['global', 'wallet', 'agent', 'loan']).default('global').describe('Delivery scope (default global). "agent" filters to one agent by its wallet address.'),
       scope_value: z.string().max(256).optional().describe('Wallet address (scope wallet/agent — the agent WALLET address, not the numeric agent id) or numeric loan id (scope loan). Omit for global.'),
       description: z.string().max(256).optional().describe('Human-readable label.'),
@@ -929,7 +929,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       url: z.string().url().max(2048)
         .refine((value) => /^https:\/\//i.test(value), 'URL must use https://')
         .optional().describe('New HTTPS endpoint URL.'),
-      events: z.array(z.string().min(1)).min(1).optional().describe('Replacement event list (exact names, "*", or prefix wildcards).'),
+      events: z.array(z.string().min(1)).min(1).max(50).optional().describe('Replacement event list (exact names, "*", or prefix wildcards).'),
       active: z.boolean().optional().describe('false pauses deliveries, true resumes them.'),
       description: z.string().max(256).optional().describe('New human-readable label.'),
     },
@@ -1042,7 +1042,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       agent_id: z.string().optional().describe('Filter to one agent id.'),
       campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
       task_id: z.string().optional().describe('Filter to one task/call id.'),
-      status: z.array(RECONCILIATION_STATUS).min(1).optional()
+      status: z.array(RECONCILIATION_STATUS).min(1).max(20).optional()
         .describe('Filter to these reconciliation statuses. Omit for all five.'),
       limit: z.number().int().min(1).max(500).optional().describe('Max legs, 1-500 (server default 100).'),
       cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
@@ -1067,7 +1067,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       customer_id: z.string().optional().describe('Filter to one end-client tag.'),
       agent_id: z.string().optional().describe('Filter to one agent id.'),
       campaign_id: z.string().optional().describe('Filter to one campaign tag.'),
-      status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).max(20).optional().describe('Filter legs to these statuses.'),
       limit: z.number().int().min(1).max(500).optional().describe('Max call groups, 1-500 (server default 100).'),
       cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
     },
@@ -1092,7 +1092,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       until: z.string().optional().describe('ISO-8601 upper bound (exclusive). Default: now.'),
       vendor: z.string().optional().describe('Filter to one vendor.'),
       customer_id: z.string().optional().describe('Filter to one end-client tag.'),
-      status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).max(20).optional().describe('Filter legs to these statuses.'),
       limit: z.number().int().min(1).max(500).optional().describe('Max rows, 1-500 (server default 100).'),
       cursor: z.string().optional().describe('Opaque keyset cursor from a previous page.'),
     },
@@ -1197,7 +1197,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
         .describe('Filter to one channel. Note: a `channel` filter suppresses the range-wide `subtotals` block (it is not a leg property), rather than returning a wider figure under a narrow label.'),
       outcome: z.enum(['success', 'failure', 'partial', 'unknown']).optional()
         .describe('The task\'s derived outcome. `unknown` is a real outcome (the resolver saw disagreeing signals), not "not yet derived".'),
-      status: z.array(RECONCILIATION_STATUS).min(1).optional()
+      status: z.array(RECONCILIATION_STATUS).min(1).max(20).optional()
         .describe('Tasks containing a leg in one of these reconciliation statuses.'),
       order_by: z.enum(['started', 'cost']).default('started')
         .describe('`started` = newest first (stable). `cost` = most expensive first, keyed on each task\'s currently-costed LOWER BOUND — a task whose priciest leg is still pending can rank lower than it eventually will, and the cost cursor walks a live aggregate, so use `started` for a stable full walk.'),
@@ -1247,7 +1247,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       campaign_id: z.string().min(1).optional().describe('Filter to one campaign tag.'),
       agent_id: z.string().min(1).optional().describe('Filter to one agent id.'),
       outcome: z.enum(['success', 'failure', 'partial', 'unknown']).optional().describe('Filter to one task outcome.'),
-      status: z.array(RECONCILIATION_STATUS).min(1).optional().describe('Filter legs to these statuses.'),
+      status: z.array(RECONCILIATION_STATUS).min(1).max(20).optional().describe('Filter legs to these statuses.'),
       limit: z.number().int().min(1).max(500).optional().describe('Max rows, 1-500 (server default 100).'),
       cursor: z.string().min(1).optional().describe('Opaque keyset cursor from a previous page.'),
     },
@@ -1349,7 +1349,7 @@ export function registerAllTools(server: McpServer, client: FloeApiClient, opts:
       customer_id: z.string().min(1).optional().describe('Claims on calls for this client.'),
       campaign_id: z.string().min(1).optional().describe('Claims on calls in this campaign.'),
       outcome_kind: z.string().min(1).max(64).optional().describe('One kind, e.g. meeting_booked.'),
-      status: z.array(z.enum(['reported', 'confirmed', 'disputed', 'void', 'reversed']))
+      status: z.array(z.enum(['reported', 'confirmed', 'disputed', 'void', 'reversed'])).max(20)
         .optional().describe('Filter to these claim statuses.'),
       source: z.enum(['agent', 'operator', 'orchestrator', 'client', 'floe'])
         .optional().describe('WHO asserted the claim.'),

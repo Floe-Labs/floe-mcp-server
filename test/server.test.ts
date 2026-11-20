@@ -673,4 +673,32 @@ describe('new tool wiring', () => {
     expect(payload).toEqual({ depositAddress: '0xabc', chainId: 8453 });
     expect(apiCalls()).toHaveLength(1);
   });
+
+  it('bounds every tool array parameter and rejects oversized invalid arrays before walking elements', () => {
+    const server = makeServer(DEV_KEY);
+    const arrayCases: Array<[string, Record<string, unknown>, string]> = [
+      ['x402_forecast', {}, 'items'],
+      ['get_activity', {}, 'type'],
+      ['create_webhook', { url: 'https://example.com/hook' }, 'events'],
+      ['update_webhook', { webhook_id: 1 }, 'events'],
+      ['list_vendor_cost_legs', {}, 'status'],
+      ['list_vendor_cost_calls', {}, 'status'],
+      ['get_vendor_cost_rollup', {}, 'status'],
+      ['list_interactions', {}, 'status'],
+      ['get_interaction_cost_rollup', {}, 'status'],
+      ['list_outcomes', {}, 'status'],
+    ];
+    for (const [toolName, baseArgs, field] of arrayCases) {
+      const res = parseArgs(server, toolName, { ...baseArgs, [field]: Array(51).fill(123) });
+      expect(res.success, `${toolName}.${field} should reject >50 elements`).toBe(false);
+      if (!res.success) {
+        // Zod >= 4.6.6 reports a single top-level too_big issue without walking invalid elements
+        expect(res.error.issues, `${toolName}.${field} should short-circuit on size`).toHaveLength(1);
+        expect(res.error.issues[0].code).toBe('too_big');
+      }
+    }
+
+    expect(parseArgs(server, 'x402_pay', { url: 'https://example.com', headers: { 'x-test': '1' } }).success).toBe(true);
+    expect(parseArgs(server, 'x402_pay', { url: 'https://example.com', headers: { 'x-test': 123 } }).success).toBe(false);
+  });
 });
